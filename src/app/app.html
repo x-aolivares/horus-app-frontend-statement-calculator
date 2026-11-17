@@ -1,0 +1,105 @@
+<div class="screen">
+  <header class="nav-bar">
+    <div class="nav-title">Statement Calculator</div>
+    <button type="button" class="nav-btn" (click)="openFilter()">Filtrar</button>
+  </header>
+
+  <main class="content">
+    @if (activeTab() === 'movimientos') {
+      <div class="section-title">Movimientos</div>
+      <div class="card">
+        @if (filteredMovements().length === 0) {
+          <div class="empty">No hay movimientos para mostrar.</div>
+        } @else {
+          @for (item of filteredMovements(); track item.id) {
+            <div class="cell">
+              <div>
+                <div class="cell-title">{{ item.description }}</div>
+                <div class="cell-meta">{{ item.date }}</div>
+              </div>
+              <div class="cell-price">${{ formatAmount(item.amount) }}</div>
+            </div>
+          }
+        }
+      </div>
+    } @else {
+      <div class="section-title">Resumen</div>
+      <div class="card">
+        <div class="total-bar">
+          <span>Total filtrado</span>
+          <strong>${{ formatAmount(total()) }}</strong>
+        </div>
+        <div class="cell">
+          <div>
+            <div class="cell-title">Elementos</div>
+            <div class="cell-meta">Cantidad en la lista actual</div>
+          </div>
+          <div class="cell-price">{{ filteredMovements().length }}</div>
+        </div>
+        <div class="cell">
+          <div>
+            <div class="cell-title">Filtro activo</div>
+            <div class="cell-meta">Criterio aplicado a la lista</div>
+          </div>
+          <div class="cell-price">{{ filter() === 'todos' ? 'Todos' : '≥ $15' }}</div>
+        </div>
+      </div>
+      <p class="sheet-note">Subí tu PDF de estado de cuenta, mapeá columnas y usá esta vista para sumar y revisar elementos.</p>
+    }
+  </main>
+
+  <button type="button" class="fab" aria-label="Crear" (click)="createMovement()">+</button>
+
+  <nav class="tab-bar" aria-label="Tabs">
+    @for (tab of tabs; track tab.id) {
+      <button
+        type="button"
+        class="tab"
+        [class.tab-active]="activeTab() === tab.id"
+        (click)="setTab(tab.id)"
+      >
+        <span aria-hidden="true">{{ tab.icon }}</span>
+        <span>{{ tab.label }}</span>
+      </button>
+    }
+  </nav>
+
+  @if (snackbar(); as note) {
+    <div class="snackbar" role="status" aria-live="polite">
+      <span>{{ note.message }}</span>
+      <button type="button" (click)="undoCreate()">Deshacer</button>
+    </div>
+  }
+
+  <div class="sheet-overlay" [class.open]="filterOpen()">
+    <div class="sheet-backdrop" (click)="closeFilter()"></div>
+    <div class="sheet-panel" role="dialog" aria-label="Filtros">
+      <div class="sheet-title">Filtrar movimientos</div>
+      <p class="sheet-note">Elegí qué elementos querés ver y sumar.</p>
+      <div class="chips">
+        <button
+          type="button"
+          class="chip"
+          [class.chip-active]="filter() === 'todos'"
+          (click)="setFilter('todos')"
+        >
+          Todos
+        </button>
+        <button
+          type="button"
+          class="chip"
+          [class.chip-active]="filter() === 'mayores'"
+          (click)="setFilter('mayores')"
+        >
+          Montos ≥ $15
+        </button>
+      </div>
+      <div class="sheet-actions">
+        <button type="button" class="btn btn-ghost" (click)="closeFilter()">Cerrar</button>
+        <button type="button" class="btn btn-primary" (click)="closeFilter()">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<router-outlet />
