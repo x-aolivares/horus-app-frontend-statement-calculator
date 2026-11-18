@@ -152,8 +152,24 @@ export class App {
   protected onDateTo(v: string) { this.dateTo.set(v); }
   protected setDateMode(mode: 'rango' | 'dia') { this.dateMode.set(mode); }
   protected onDateSingle(v: string) { this.dateSingle.set(v); }
-  protected toggleSort() {
-    this.sortOrder.update((s) => (s === 'date-desc' ? 'date-asc' : 'date-desc'));
+  protected readonly activeFilterCount = computed(() => {
+    let n = 0;
+    if (this.search().trim()) n++;
+    if (this.filter() !== 'todos') n++;
+    if (this.dateMode() === 'dia') {
+      if (this.dateSingle()) n++;
+    } else {
+      if (this.dateFrom()) n++;
+      if (this.dateTo()) n++;
+    }
+    return n;
+  });
+  protected clearAllFilters() {
+    this.onSearch('');
+    this.setFilter('todos');
+    this.onDateFrom('');
+    this.onDateTo('');
+    this.onDateSingle('');
   }
   protected toggleTheme() {
     this.dark.update((v) => !v);

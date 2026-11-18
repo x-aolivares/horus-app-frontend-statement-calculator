@@ -2,9 +2,6 @@
   <header class="nav-bar">
     <div class="nav-title">Statement Calculator</div>
     <div class="nav-actions">
-      @if (activeTab() === 'movimientos') {
-        <button type="button" class="nav-btn" (click)="openFilter()">Filtros</button>
-      }
       <button type="button" class="nav-btn theme-btn" (click)="toggleTheme()" [attr.aria-label]="dark() ? 'Modo claro' : 'Modo oscuro'">
         {{ dark() ? '☀' : '☾' }}
       </button>
@@ -69,18 +66,6 @@
           </div>
         </div>
 
-        <div style="display:flex; gap:8px; align-items:center;">
-          <div class="search-field" style="flex:1; margin:0;">
-            <input class="search-input" type="text" placeholder="Buscar (Sonda, BGP, fecha…)" [value]="search()" (input)="onSearch($any($event.target).value)" />
-            @if (search()) {
-              <button type="button" class="search-clear" (click)="clearSearch()" aria-label="Limpiar búsqueda">✕</button>
-            }
-          </div>
-          <button type="button" class="chip sm" (click)="toggleSort()" [attr.aria-label]="sortOrder() === 'date-desc' ? 'Más recientes primero' : 'Más antiguos primero'">
-            {{ sortOrder() === 'date-desc' ? '↓ Fecha' : '↑ Fecha' }}
-          </button>
-        </div>
-
         <div class="card movements-list">
           @if (filteredMovements().length === 0) {
             <div class="empty">No hay movimientos.</div>
@@ -117,6 +102,15 @@
     </label>
   }
 
+  @if (activeTab() === 'movimientos') {
+    <button type="button" class="fab" aria-label="Filtros" title="Filtros" (click)="openFilter()">
+      ☰
+      @if (activeFilterCount() > 0) {
+        <span class="fab-badge">{{ activeFilterCount() }}</span>
+      }
+    </button>
+  }
+
   @if (snackbar(); as sb) {
     <div class="snackbar" role="status">
       <span>{{ sb.message }}</span>
@@ -139,15 +133,37 @@
     <div class="sheet-backdrop" (click)="closeFilter()"></div>
     <div class="sheet-panel" role="dialog" aria-label="Filtros">
       <div class="sheet-title">Filtros</div>
-      <div class="chips">
-        <button type="button" class="chip" [class.chip-active]="filter() === 'todos'" (click)="setFilter('todos')">Todos</button>
-        <button type="button" class="chip" [class.chip-active]="filter() === 'debitos'" (click)="setFilter('debitos')">Débitos</button>
-        <button type="button" class="chip" [class.chip-active]="filter() === 'creditos'" (click)="setFilter('creditos')">Créditos</button>
-      </div>
-      <div class="chips">
-        <button type="button" class="chip" [class.chip-active]="dateMode() === 'rango'" (click)="setDateMode('rango')">Rango</button>
-        <button type="button" class="chip" [class.chip-active]="dateMode() === 'dia'" (click)="setDateMode('dia')">Día</button>
-      </div>
+      <label class="field">
+        <span class="field-label">Búsqueda</span>
+        <div class="search-field" style="padding: 0 8px 0 12px;">
+          <input class="search-input" type="text" placeholder="Sonda, BGP, fecha…" [value]="search()" (input)="onSearch($any($event.target).value)" />
+          @if (search()) {
+            <button type="button" class="search-clear" (click)="clearSearch()" aria-label="Limpiar búsqueda">✕</button>
+          }
+        </div>
+      </label>
+      <label class="field">
+        <span class="field-label">Orden</span>
+        <div class="chips">
+          <button type="button" class="chip" [class.chip-active]="sortOrder() === 'date-desc'" (click)="sortOrder.set('date-desc')">Recientes</button>
+          <button type="button" class="chip" [class.chip-active]="sortOrder() === 'date-asc'" (click)="sortOrder.set('date-asc')">Antiguos</button>
+        </div>
+      </label>
+      <label class="field">
+        <span class="field-label">Tipo</span>
+        <div class="chips">
+          <button type="button" class="chip" [class.chip-active]="filter() === 'todos'" (click)="setFilter('todos')">Todos</button>
+          <button type="button" class="chip" [class.chip-active]="filter() === 'debitos'" (click)="setFilter('debitos')">Débitos</button>
+          <button type="button" class="chip" [class.chip-active]="filter() === 'creditos'" (click)="setFilter('creditos')">Créditos</button>
+        </div>
+      </label>
+      <label class="field">
+        <span class="field-label">Fecha</span>
+        <div class="chips">
+          <button type="button" class="chip" [class.chip-active]="dateMode() === 'rango'" (click)="setDateMode('rango')">Rango</button>
+          <button type="button" class="chip" [class.chip-active]="dateMode() === 'dia'" (click)="setDateMode('dia')">Día</button>
+        </div>
+      </label>
       @if (dateMode() === 'dia') {
         <label class="field">
           <span class="field-label">Día</span>
@@ -166,7 +182,7 @@
         </div>
       }
       <div class="sheet-actions">
-        <button type="button" class="btn btn-ghost" (click)="setFilter('todos'); onDateFrom(''); onDateTo(''); onDateSingle('')">Limpiar</button>
+        <button type="button" class="btn btn-ghost" (click)="clearAllFilters()">Limpiar</button>
         <button type="button" class="btn btn-primary" (click)="closeFilter()">Listo</button>
       </div>
     </div>
