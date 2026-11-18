@@ -125,6 +125,7 @@ export class App {
   protected closeFilter() { this.filterOpen.set(false); }
   protected setFilter(v: 'todos' | 'debitos' | 'creditos') { this.filter.set(v); }
   protected onSearch(v: string) { this.search.set(v); }
+  protected clearSearch() { this.search.set(''); }
   protected onDateFrom(v: string) { this.dateFrom.set(v); }
   protected onDateTo(v: string) { this.dateTo.set(v); }
   protected toggleSort() {
