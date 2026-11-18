@@ -315,7 +315,7 @@ export class App {
     this.pendingMovements.set([]);
   }
 
-  // --- Parsing logic kept compatible with the working version ---
+  // --- Parsing logic: supports multiple statement formats (retrocompatible) ---
   private async extractRows(file: File): Promise<RawRow[]> {
     const pdfjsLib: any = await import('pdfjs-dist');
     if (pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
@@ -339,11 +339,12 @@ export class App {
         .map((it) => {
           const str = String(it.str ?? '').replace(/\s+/g, ' ').trim();
           const tr = it.transform || [1, 0, 0, 1, 0, 0];
-          return { str, x: tr[4] as number, y: tr[5] as number };
+          const w = typeof it.width === 'number' && it.width > 0 ? (it.width as number) : Math.max(1, str.length) * 3;
+          return { str, x: tr[4] as number, y: tr[5] as number, w };
         })
         .filter((it) => it.str.length > 0);
 
-      const lines = new Map<number, { x: number; str: string }[]>();
+      const lines = new Map<number, { x: number; str: string; w: number }[]>();
       for (const it of items) {
         const yKey = Math.round(it.y);
         let bucketKey = yKey;
@@ -351,16 +352,32 @@ export class App {
           if (Math.abs(key - yKey) <= 2) { bucketKey = key; break; }
         }
         if (!lines.has(bucketKey)) lines.set(bucketKey, []);
-        lines.get(bucketKey)!.push({ x: it.x, str: it.str });
+        lines.get(bucketKey)!.push(it);
       }
 
-      const sortedYs = [...lines.keys()].sort((a, b) => b - a);
+      const sortedYs = [...lines.keys()].toSorted((a, b) => b - a);
       for (const y of sortedYs) {
         const parts = lines.get(y)!.sort((a, b) => a.x - b.x);
-        const text = parts.map((p) => p.str).join(' ').replace(/\s+/g, ' ').trim();
-        if (!text) continue;
-        const cells = this.splitCells(text);
-        allRows.push({ cells, text });
+        const cells: string[] = [];
+        let cellText = parts[0].str;
+        let right = parts[0].x + parts[0].w;
+        for (let i = 1; i < parts.length; i++) {
+          const part = parts[i];
+          const gap = part.x - right;
+          // large horizontal gap => new column/cell; small gap => same text fragment
+          if (gap > 10) {
+            cells.push(cellText.trim());
+            cellText = part.str;
+          } else {
+            cellText += ' ' + part.str;
+          }
+          right = Math.max(right, part.x + part.w);
+        }
+        cells.push(cellText.trim());
+        const filtered = cells.map((c) => c.trim()).filter((c) => c.length > 0);
+        if (!filtered.length) continue;
+        const text = filtered.join('  ').replace(/\s+/g, ' ').trim();
+        allRows.push({ cells: filtered, text });
       }
     }
     return allRows;
@@ -382,8 +399,8 @@ export class App {
       };
       this.columnMap.set({
         date: findIdx(/fecha/i, 0),
-        reference: findIdx(/refer/i, 1),
-        description: findIdx(/descrip/i, 2),
+        reference: findIdx(/refer/i, -1),
+        description: findIdx(/descrip/i, header.cells.length >= 2 ? 1 : 0),
         amount: findIdx(/monto/i, header.cells.length - 1),
       });
       return;
@@ -393,6 +410,8 @@ export class App {
       this.columnMap.set({ date: 0, reference: 1, description: 2, amount: max - 1 });
     } else if (max === 3) {
       this.columnMap.set({ date: 0, description: 1, amount: 2, reference: -1 });
+    } else {
+      this.columnMap.set({ date: 0, description: 1, amount: 1, reference: -1 });
     }
   }
 
@@ -405,48 +424,207 @@ export class App {
     const rows = this.rawRows();
     const parsed: Movement[] = [];
     let pending: Movement | null = null;
+    let leadIn = '';
 
-    const isDate = (s: string) => /^(\d{1,2}[\/\-][A-Z]{3}[\/\-]\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})$/i.test(s.trim());
-    const isMoney = (s: string) => /^[\$]?\s*-?[\d.,]+-?$/.test(s.trim());
+    const isDate = (s: string) => /^(\d{1,2}[\/\-][A-Z]{3}[\/\-]\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})$/i.test((s || '').trim());
+    const isMoney = (s: string) => /^-?\$?\s*-?[\d.,]+-?$/.test((s || '').trim());
+    const isHeaderLike = (t: string) =>
+      /\bDETALLE\b|DESCRIPCI[OÓ]N|REFERENCIA|SALDO\s+TOTAL/i.test(t) ||
+      (/^FECHA\b/i.test(t) && /MONTO/i.test(t)) ||
+      /^informaci[oó]n (de|relevante)\b/i.test(t) ||
+      /^notificaciones\b/i.test(t);
+    const isSectionNoise = (t: string) =>
+      /^(cargos y pagos|movimientos\b|planes de cr[eé]dito|plan de cr[eé]dito)\b/i.test(t) ||
+      /pagos\s+\$[\d.,]+\s*[•·]\s*compras/i.test(t) ||
+      /^deuda anterior\b/i.test(t) ||
+      /^estado de cuenta\b/i.test(t) ||
+      /^informaci[oó]n de (la )?cuenta\b/i.test(t) ||
+      /^programa de puntos\b/i.test(t) ||
+      /^puntos disponibles\b/i.test(t) ||
+      /^resumen de estado\b/i.test(t) ||
+      /^disponible\s+\$/i.test(t) ||
+      /^(compras|pagos)\s+-?\$[\d.,]+\s*$/i.test(t);
     const fname = this.pendingFileName() || '';
 
-    for (const row of rows) {
+    const headerRow = rows.find((r) => /fecha/i.test(r.text) && /descrip/i.test(r.text) && /monto/i.test(r.text));
+    let saldoIdx = -1;
+    if (headerRow) {
+      saldoIdx = headerRow.cells.findIndex((c) => /saldo/i.test(c));
+    }
+    const hasSaldo = saldoIdx >= 0 && saldoIdx > map.amount;
+
+    const rowInfo = (row: RawRow) => {
       const cells = row.cells;
       const get = (idx: number) => (idx >= 0 && idx < cells.length ? cells[idx].trim() : '');
-      const date = get(map.date);
-      const amountStr = get(map.amount);
-      const desc = get(map.description);
-      const ref = get(map.reference);
-
-      if (isDate(date) && isMoney(amountStr)) {
-        if (pending) { parsed.push(pending); pending = null; }
-        const amount = this.parseAmount(amountStr);
-        pending = { id: this.newId('mov'), fileId: '', fileName: fname, date, dateValue: this.parseStatementDate(date), reference: ref, description: desc, amount, raw: row.text };
-      } else if (pending) {
-        if (isMoney(amountStr) && !pending.description.includes(get(map.amount))) {
-          // keep existing amount
+      const rowText = row.text.trim();
+      let date = get(map.date);
+      let dateIdx = map.date;
+      if (!isDate(date)) {
+        const found = cells.findIndex((c) => isDate(c));
+        if (found >= 0) { date = cells[found].trim(); dateIdx = found; }
+      }
+      let amountStr = get(map.amount);
+      let amountIdx = map.amount;
+      const moneyIdxs = cells.map((c, i) => (isMoney(c) ? i : -1)).filter((i) => i >= 0);
+      if (!isMoney(amountStr)) {
+        if (moneyIdxs.length > 0) {
+          if (hasSaldo && moneyIdxs.length >= 2) amountIdx = moneyIdxs[moneyIdxs.length - 2];
+          else amountIdx = moneyIdxs[moneyIdxs.length - 1];
+          amountStr = cells[amountIdx].trim();
         }
-        const extra = [desc, ref, date].filter((s) => s && s !== pending!.description).join(' ').trim();
-        if (extra && !/\bDETALLE|DESCRIPCI|FECHA\b/i.test(extra)) {
-          pending.description = `${pending.description} ${extra}`.replace(/\s+/g, ' ').trim();
+      } else if (hasSaldo) {
+        if (moneyIdxs.length >= 2 && amountIdx === moneyIdxs[moneyIdxs.length - 1]) {
+          amountIdx = moneyIdxs[moneyIdxs.length - 2];
+          amountStr = cells[amountIdx].trim();
+        }
+      }
+      let saldoValueIdx = -1;
+      if (hasSaldo && moneyIdxs.length >= 2) {
+        saldoValueIdx = moneyIdxs[moneyIdxs.length - 1];
+        if (saldoValueIdx === amountIdx && moneyIdxs.length >= 3) saldoValueIdx = moneyIdxs[moneyIdxs.length - 2];
+      }
+      let ref = '';
+      if (map.reference >= 0 && map.reference < cells.length) {
+        const r = cells[map.reference].trim();
+        if (r && r !== date && r !== amountStr) ref = r;
+      }
+      let desc = '';
+      if (map.description >= 0) {
+        const start = Math.max(0, map.description);
+        const end = amountIdx > start ? amountIdx : cells.length;
+        const parts: string[] = [];
+        for (let i = start; i < end && i < cells.length; i++) {
+          if (i === dateIdx || i === amountIdx) continue;
+          if (saldoValueIdx >= 0 && i === saldoValueIdx) continue;
+          const cell = cells[i];
+          if (typeof cell === 'string' && cell.trim()) parts.push(cell.trim());
+        }
+        desc = parts.join(' ').replace(/\s+/g, ' ').trim();
+      }
+      if (!desc) {
+        desc = cells.filter((c, i) => i !== dateIdx && i !== amountIdx && i !== saldoValueIdx).join(' ').replace(/\s+/g, ' ').trim();
+      }
+      const dateCount = cells.filter((c) => isDate(c)).length;
+      return { cells, rowText, date, dateIdx, amountStr, amountIdx, moneyIdxs, saldoValueIdx, ref, desc, dateCount };
+    };
+
+    for (let ri = 0; ri < rows.length; ri++) {
+      const row = rows[ri];
+      const rowText = row.text.trim();
+      if (!rowText) continue;
+
+      if (isHeaderLike(rowText) || isSectionNoise(rowText)) {
+        leadIn = '';
+        continue;
+      }
+      if (/^\d+\s+de\s+\d+$/i.test(rowText) || /^\*{4,}[\d*]+$/.test(rowText.replace(/\s+/g, '')) || /^saldo anterior\b/i.test(rowText)) {
+        leadIn = '';
+        continue;
+      }
+      if (rowText.length > 140 && !/\d{1,2}[\/\-][A-Z]{3}[\/\-]\d{4}/i.test(rowText)) {
+        leadIn = '';
+        continue;
+      }
+
+      const info = rowInfo(row);
+      const { cells, date, dateIdx, amountStr, amountIdx, moneyIdxs, saldoValueIdx, ref, desc, dateCount } = info;
+
+      const isTxnRow = isDate(date) && isMoney(amountStr);
+      if (isTxnRow) {
+        const amount = this.parseAmount(amountStr);
+        let fullDesc = [leadIn, desc].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+        const summaryLike = moneyIdxs.length >= 4 || (dateCount >= 2 && moneyIdxs.length >= 3);
+        const meaningful = /[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,}/.test(fullDesc.replace(/[-$]?[\d.,]+/g, '').trim());
+        if (summaryLike || (!meaningful && !(hasSaldo && moneyIdxs.length >= 2))) {
+          if (pending) { parsed.push(pending); pending = null; }
+          leadIn = '';
+          continue;
+        }
+        if (pending) { parsed.push(pending); pending = null; }
+        leadIn = '';
+        pending = {
+          id: this.newId('mov'), fileId: '', fileName: fname,
+          date, dateValue: this.parseStatementDate(date),
+          reference: ref === desc ? '' : ref,
+          description: fullDesc || desc || rowText,
+          amount, raw: row.text,
+        };
+        // if description is missing (e.g. split into following line), try to pull next text-only line
+        if (!meaningful) {
+          const next = rows[ri + 1];
+          if (next) {
+            const nText = next.text.trim();
+            const nInfo = rowInfo(next);
+            const nIsTxn = isDate(nInfo.date) && isMoney(nInfo.amountStr);
+            if (!nIsTxn && nText && !isHeaderLike(nText) && !isSectionNoise(nText) && /[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}/.test(nText) && nText.length < 120) {
+              pending.description = `${pending.description} ${nText}`.replace(/\s+/g, ' ').trim();
+              ri++;
+            }
+          }
+        }
+        continue;
+      }
+
+      if (pending) {
+        // if this is a text-only line and next row is a transaction that likely needs a lead-in (no desc), treat as lead-in
+        const next = rows[ri + 1];
+        if (next) {
+          const nText = next.text.trim();
+          const nInfo = rowInfo(next);
+          const nIsTxn = isDate(nInfo.date) && isMoney(nInfo.amountStr);
+          if (nIsTxn) {
+            const nDesc = [nInfo.desc].filter(Boolean).join(' ').trim();
+            const nMeaningful = /[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,}/.test(nDesc.replace(/[-$]?[\d.,]+/g, '').trim());
+            const isTextOnly = !isDate(date) && moneyIdxs.length === 0 && /[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}/.test(rowText);
+            if (isTextOnly && !nMeaningful && hasSaldo) {
+              parsed.push(pending);
+              pending = null;
+              leadIn = [leadIn, rowText].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+              continue;
+            }
+          }
+        }
+
+        const extra = rowText;
+        if (!isHeaderLike(extra) && !isSectionNoise(extra) && !/^\d+\s+de\s+\d+$/i.test(extra)) {
+          const stripped = extra.replace(/[-$]?[\d.,]+/g, '').replace(/[•·%]/g, '').trim();
+          const moneyOnly = !/[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,}/.test(stripped);
+          const looksLikeNewSection = /^(saldo|total|disponible|l[ií]mite|fecha de|producto|n[°o]\s*cuenta|titular|informaci[oó]n|notificaciones|ruc|tasa|inter[eé]s|estimado cliente)/i.test(extra);
+          const looksLikeSummary = /^(compras|pagos|cargos|débitos|cr[eé]ditos)\b/i.test(extra);
+          const tooLong = extra.length > 120;
+          const looksLegal = /reclamos|llamando al|d[ií]as h[aá]biles|se entender[aá]|ser[aá]n actualizadas|para su conveniencia|seg[uú]n lo establece|banco general,\s*s\.a\./i.test(extra);
+          const looksDocHeader = /^(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s+\d{4}$/i.test(extra.trim()) || /pago de contado|fecha l[ií]mite/i.test(extra) || (extra === extra.toUpperCase() && /^[A-ZÁÉÍÓÚÑ\s.]{12,}$/.test(extra));
+          if (!moneyOnly && !looksLikeNewSection && !looksLikeSummary && !tooLong && !looksLegal && !looksDocHeader) {
+            pending.description = `${pending.description} ${extra}`.replace(/\s+/g, ' ').trim();
+          }
+        }
+        continue;
+      }
+
+      // no pending
+      if (!isDate(date) && moneyIdxs.length === 0 && /[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}/.test(rowText)) {
+        const looksMeta = /[:]/.test(rowText) && /(cuenta|titular|disponible|l[ií]mite|corte|pago|producto|planilla|email|puntos|programa)/i.test(rowText);
+        const looksTitle = rowText === rowText.toUpperCase() && rowText.length > 20;
+        if (!looksMeta && !looksTitle && rowText.length < 80) {
+          leadIn = [leadIn, rowText].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+        } else {
+          leadIn = '';
         }
       } else {
-        if (isMoney(amountStr) && desc && !/\bDETALLE|DESCRIPCI|FECHA\b/i.test(row.text)) {
-          const amount = this.parseAmount(amountStr);
-          parsed.push({ id: this.newId('mov'), fileId: '', fileName: fname, date: date || '', dateValue: this.parseStatementDate(date), reference: ref, description: desc || row.text, amount, raw: row.text });
-        }
+        leadIn = '';
       }
     }
     if (pending) parsed.push(pending);
 
     if (parsed.length === 0) {
       for (const row of rows) {
-        const m = row.text.match(/^(\d{1,2}\/[A-Z]{3}\/\d{4})\s+(.*?)\s+(-?\$?[\d,.]+-?)$/i);
+        const m = row.text.match(/^(\d{1,2}[\/\-][A-Z]{3}[\/\-]\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s+(.*?)\s+(-?\$?\s*[\d.,]+-?)\s*$/i);
         if (m) {
           const [, date, rest, amt] = m;
-          const parts = rest.trim().split(/\s{2,}|\s+/);
-          const reference = parts.length > 1 && /^\d{6,}/.test(parts[0]) ? parts.shift()! : '';
-          parsed.push({ id: this.newId('mov'), fileId: '', fileName: fname, date, dateValue: this.parseStatementDate(date), reference, description: parts.join(' '), amount: this.parseAmount(amt), raw: row.text });
+          const parts = rest.trim().split(/\s{2,}/);
+          const tokens = parts.length > 1 ? parts : rest.trim().split(/\s+/);
+          const reference = tokens.length > 1 && /^(\d[\d\s-]{4,})$/.test(tokens[0]) ? tokens.shift()! : '';
+          parsed.push({ id: this.newId('mov'), fileId: '', fileName: fname, date, dateValue: this.parseStatementDate(date), reference, description: tokens.join(' ').replace(/\s+/g, ' ').trim(), amount: this.parseAmount(amt), raw: row.text });
         }
       }
     }
@@ -456,11 +634,14 @@ export class App {
 
   private parseAmount(s: string): number {
     if (!s) return 0;
-    let t = s.replace(/\$/g, '').replace(/\s/g, '').trim();
+    let t = String(s).replace(/\$/g, '').replace(/\s/g, '').trim();
     let negative = false;
+    if (/^-/.test(t) || /^-/.test(String(s).trim())) negative = true;
+    if (t.startsWith('-')) t = t.slice(1);
     if (t.endsWith('-')) { negative = true; t = t.slice(0, -1); }
     if (t.startsWith('-')) { negative = true; t = t.slice(1); }
     if (/,\d{3}/.test(t)) t = t.replace(/,/g, '');
+    else if (/\.\d{3}/.test(t) && /,\d{1,2}$/.test(t)) t = t.replace(/\./g, '').replace(/,/g, '.');
     else t = t.replace(/,/g, '.');
     const n = parseFloat(t);
     const val = isNaN(n) ? 0 : n;
