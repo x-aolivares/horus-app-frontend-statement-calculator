@@ -17,45 +17,6 @@
         <div class="card" style="padding:12px; font-size:13px; color: var(--text-2);">Leyendo PDF…</div>
       }
 
-      @if (pendingFileName()) {
-        <div class="section-title">{{ pendingFileName() }}</div>
-        <div class="card" style="padding: 12px; gap: 10px;">
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <label class="field">
-              <span class="field-label">Fecha</span>
-              <select class="field-input" [value]="columnMap().date" (change)="updateMap('date', +$any($event.target).value)">
-                @for (i of indexOptions(); track i) { <option [value]="i">Col {{ i }}</option> }
-              </select>
-            </label>
-            <label class="field">
-              <span class="field-label">Referencia</span>
-              <select class="field-input" [value]="columnMap().reference" (change)="updateMap('reference', +$any($event.target).value)">
-                <option [value]="-1">Ninguna</option>
-                @for (i of indexOptions(); track i) { <option [value]="i">Col {{ i }}</option> }
-              </select>
-            </label>
-            <label class="field" style="grid-column: 1 / -1;">
-              <span class="field-label">Descripción</span>
-              <select class="field-input" [value]="columnMap().description" (change)="updateMap('description', +$any($event.target).value)">
-                @for (i of indexOptions(); track i) { <option [value]="i">Col {{ i }}</option> }
-              </select>
-            </label>
-            <label class="field" style="grid-column: 1 / -1;">
-              <span class="field-label">Monto</span>
-              <select class="field-input" [value]="columnMap().amount" (change)="updateMap('amount', +$any($event.target).value)">
-                @for (i of indexOptions(); track i) { <option [value]="i">Col {{ i }}</option> }
-              </select>
-            </label>
-          </div>
-          <div class="sheet-actions">
-            <button type="button" class="btn btn-ghost" (click)="applyPendingMapping()">Aplicar</button>
-            <button type="button" class="btn btn-primary" (click)="savePendingAsStatement()">Guardar</button>
-          </div>
-          <button type="button" class="chip" (click)="cancelPending()">Cancelar</button>
-          <div class="cell-meta">Movimientos: <strong>{{ pendingMovements().length }}</strong></div>
-        </div>
-      }
-
       <div class="section-title">Archivos</div>
       @if (files().length > 0) {
         <div class="chips" style="margin-bottom:4px;">

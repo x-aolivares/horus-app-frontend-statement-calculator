@@ -150,48 +150,46 @@ export class App {
     if (!file) return;
     this.error.set(null);
     this.loading.set(true);
-    this.pendingFileName.set(file.name);
     try {
       const rows = await this.extractRows(file);
       this.rawRows.set(rows);
+      this.pendingFileName.set(file.name);
       this.autoDetectMap(rows);
       this.applyPendingMapping();
+      const movements = this.pendingMovements();
+      if (movements.length === 0) {
+        this.error.set('No se pudieron detectar movimientos en el archivo.');
+        this.cancelPending();
+        return;
+      }
+      const fileId = this.newId('file');
+      const stored: StatementFile = {
+        id: fileId,
+        name: file.name,
+        importedAt: new Date().toISOString(),
+        movements: movements.map((m) => ({ ...m, fileId, fileName: file.name, id: this.newId('mov') })),
+      };
+      this.files.update((list) => [stored, ...list]);
+      this.selectedFileIds.update((set) => { const n = new Set(set); n.add(fileId); return n; });
+      this.pendingFileName.set(null);
+      this.rawRows.set([]);
+      this.pendingMovements.set([]);
+      this.saveFiles();
+      this.activeTab.set('movimientos');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'No se pudo leer el PDF.';
       this.error.set(msg);
+      this.cancelPending();
     } finally {
       this.loading.set(false);
       input.value = '';
     }
   }
 
-  protected savePendingAsStatement() {
-    const name = this.pendingFileName();
-    const movements = this.pendingMovements();
-    if (!name) return;
-    if (movements.length === 0) {
-      this.error.set('No hay movimientos para guardar. Ajustá el mapeo y aplicalo primero.');
-      return;
-    }
-    const fileId = this.newId('file');
-    const stored: StatementFile = {
-      id: fileId,
-      name,
-      importedAt: new Date().toISOString(),
-      movements: movements.map((m) => ({ ...m, fileId, fileName: name, id: this.newId('mov') })),
-    };
-    this.files.update((list) => [stored, ...list]);
-    this.selectedFileIds.update((set) => { const n = new Set(set); n.add(fileId); return n; });
-    this.cancelPending();
-    this.saveFiles();
-    this.activeTab.set('movimientos');
-  }
-
   protected cancelPending() {
     this.pendingFileName.set(null);
     this.rawRows.set([]);
     this.pendingMovements.set([]);
-    this.error.set(null);
   }
 
   // --- Parsing logic kept compatible with the working version ---
