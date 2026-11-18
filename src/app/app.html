@@ -9,8 +9,8 @@
       <div class="section-title">Cargar estado de cuenta</div>
       <div class="card" style="padding: 14px; gap: 10px;">
         <p class="sheet-note">Subí tu PDF. Se intentará leer las columnas y podrás ajustar el mapeo (fecha, descripción, monto, referencia/crédito).</p>
-        <label class="btn btn-primary" style="display:inline-flex; justify-content:center; cursor:pointer;">
-          Seleccionar PDF
+        <label class="btn btn-primary" style="display:flex; width:100%; align-items:center; justify-content:center; text-align:center; cursor:pointer; margin: 0 auto;">
+          <span style="width:100%; text-align:center;">Seleccionar PDF</span>
           <input type="file" accept="application/pdf" (change)="onFileSelected($event)" hidden />
         </label>
         @if (fileName()) {
@@ -75,22 +75,53 @@
     }
 
     @if (activeTab() === 'movimientos') {
+      <div class="selection-bar card">
+        <div class="selection-top">
+          <div>
+            <div class="cell-title">Selección</div>
+            <div class="cell-meta">{{ selectionSummary().count }} de {{ filteredMovements().length }} visibles seleccionados</div>
+          </div>
+          <div class="selection-actions">
+            <button type="button" class="chip sm" (click)="selectVisible()">Seleccionar visibles</button>
+            <button type="button" class="chip sm" (click)="clearSelection()">Limpiar</button>
+          </div>
+        </div>
+        <div class="selection-totals">
+          <div class="sum-box">
+            <span class="sum-label">Débitos</span>
+            <strong>{{ formatAmount(selectionSummary().debits) }}</strong>
+          </div>
+          <div class="sum-box">
+            <span class="sum-label">Créditos</span>
+            <strong>{{ formatAmount(selectionSummary().credits) }}</strong>
+          </div>
+          <div class="sum-box highlight">
+            <span class="sum-label">Diferencia</span>
+            <strong>{{ formatAmount(selectionSummary().net) }}</strong>
+          </div>
+        </div>
+        @if (selectionSummary().count === 0) {
+          <div class="cell-meta">Tocá los registros que querés sumar (por comercio, fecha, etc.).</div>
+        }
+      </div>
+
       <div class="section-title">Movimientos</div>
       <div class="search-field" style="margin:0 0 4px;">
-        <input class="search-input" type="text" placeholder="Buscar por descripción, fecha o referencia" [value]="search()" (input)="onSearch($any($event.target).value)" />
+        <input class="search-input" type="text" placeholder="Buscar para filtrar (ej: Sonda, BGP, 9/OCT)" [value]="search()" (input)="onSearch($any($event.target).value)" />
       </div>
       <div class="card">
         @if (filteredMovements().length === 0) {
           <div class="empty">No hay movimientos. Cargá un PDF y aplicá el mapeo en la pestaña Cargar.</div>
         } @else {
           @for (item of filteredMovements(); track item.id) {
-            <div class="cell">
-              <div style="min-width:0;">
+            <button type="button" class="cell selectable-row" [class.selected]="isSelected(item.id)" (click)="toggleSelection(item.id)">
+              <div class="row-check" aria-hidden="true">{{ isSelected(item.id) ? '✓' : '' }}</div>
+              <div style="min-width:0; flex:1; text-align:left;">
                 <div class="cell-title" style="overflow:hidden; text-overflow:ellipsis;">{{ item.description || '(sin descripción)' }}</div>
                 <div class="cell-meta">{{ item.date }} @if (item.reference) { · Ref {{ item.reference }} }</div>
               </div>
               <div class="cell-price" [style.color]="item.amount < 0 ? 'var(--accent-text)' : 'var(--text)'">{{ formatAmount(item.amount) }}</div>
-            </div>
+            </button>
           }
         }
       </div>

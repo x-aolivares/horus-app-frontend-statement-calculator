@@ -52,6 +52,7 @@ export class App {
   protected readonly filterOpen = signal(false);
   protected readonly filter = signal<'todos' | 'debitos' | 'creditos'>('todos');
   protected readonly search = signal('');
+  protected readonly selectedIds = signal<Set<number>>(new Set());
   private nextId = 1;
 
   protected readonly filteredMovements = computed(() => {
@@ -62,6 +63,23 @@ export class App {
       if (q && !`${m.description} ${m.date} ${m.reference} ${m.raw}`.toLowerCase().includes(q)) return false;
       return true;
     });
+  });
+
+  protected readonly selectedMovements = computed(() => {
+    const ids = this.selectedIds();
+    return this.filteredMovements().filter((m) => ids.has(m.id));
+  });
+
+  protected readonly selectionSummary = computed(() => {
+    const items = this.selectedMovements();
+    let debits = 0;
+    let credits = 0;
+    for (const m of items) {
+      if (m.amount >= 0) debits += m.amount;
+      else credits += m.amount; // negative
+    }
+    const net = debits + credits;
+    return { count: items.length, debits, credits, net };
   });
 
   protected readonly total = computed(() =>
@@ -76,6 +94,32 @@ export class App {
   protected closeFilter() { this.filterOpen.set(false); }
   protected setFilter(value: 'todos' | 'debitos' | 'creditos') { this.filter.set(value); }
   protected onSearch(value: string) { this.search.set(value); }
+
+  protected isSelected(id: number): boolean {
+    return this.selectedIds().has(id);
+  }
+
+  protected toggleSelection(id: number) {
+    this.selectedIds.update((set) => {
+      const next = new Set(set);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  protected selectVisible() {
+    const ids = this.filteredMovements().map((m) => m.id);
+    this.selectedIds.update((set) => {
+      const next = new Set(set);
+      for (const id of ids) next.add(id);
+      return next;
+    });
+  }
+
+  protected clearSelection() {
+    this.selectedIds.set(new Set());
+  }
 
   protected async onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -190,6 +234,7 @@ export class App {
   }
 
   protected applyMapping() {
+    this.selectedIds.set(new Set());
     const map = this.columnMap();
     const rows = this.rawRows();
     const parsed: Movement[] = [];
