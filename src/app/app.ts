@@ -105,7 +105,7 @@ export class App {
 
   protected readonly selectedMovements = computed(() => {
     const ids = this.selectedIds();
-    return this.filteredMovements().filter((m) => ids.has(m.id));
+    return this.allMovements().filter((m) => ids.has(m.id));
   });
 
   protected readonly selectionSummary = computed(() => {
