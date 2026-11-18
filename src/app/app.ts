@@ -1,7 +1,7 @@
 import { Component, computed, effect, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
-type TabId = 'archivos' | 'movimientos' | 'resumen';
+type TabId = 'archivos' | 'movimientos' | 'ajustes';
 
 interface RawRow {
   cells: string[];
@@ -46,7 +46,7 @@ export class App {
   protected readonly tabs = [
     { id: 'archivos' as TabId, label: 'Archivos', icon: '▤' },
     { id: 'movimientos' as TabId, label: 'Movimientos', icon: '☰' },
-    { id: 'resumen' as TabId, label: 'Resumen', icon: '∑' },
+    { id: 'ajustes' as TabId, label: 'Ajustes', icon: '⚙' },
   ];
 
   protected readonly activeTab = signal<TabId>('archivos');
@@ -140,7 +140,24 @@ export class App {
     return { count: items.length, debits, credits, net: debits + credits };
   });
 
-  protected readonly totalAllFiltered = computed(() => this.filteredMovements().reduce((s, m) => s + m.amount, 0));
+  protected readonly totalMovements = computed(() => this.files().reduce((s, f) => s + f.movements.length, 0));
+
+  protected setTheme(dark: boolean) { this.dark.set(dark); }
+  protected clearAllData() {
+    if (this.files().length === 0) return;
+    if (!window.confirm('¿Borrar todos los archivos y movimientos?')) return;
+    const backup = this.files();
+    const backupSelection = this.selectedFileIds();
+    this.files.set([]);
+    this.selectedFileIds.set(new Set());
+    this.selectedIds.set(new Set());
+    this.saveFiles();
+    this.notify('Datos borrados', () => {
+      this.files.set(backup);
+      this.selectedFileIds.set(backupSelection);
+      this.saveFiles();
+    });
+  }
 
   protected setTab(id: TabId) { this.activeTab.set(id); }
   protected openFilter() { this.filterOpen.set(true); }
@@ -170,9 +187,6 @@ export class App {
     this.onDateFrom('');
     this.onDateTo('');
     this.onDateSingle('');
-  }
-  protected toggleTheme() {
-    this.dark.update((v) => !v);
   }
   private loadTheme(): boolean {
     try {

@@ -1,11 +1,6 @@
 <div class="screen">
   <header class="nav-bar">
     <div class="nav-title">Statement Calculator</div>
-    <div class="nav-actions">
-      <button type="button" class="nav-btn theme-btn" (click)="toggleTheme()" [attr.aria-label]="dark() ? 'Modo claro' : 'Modo oscuro'">
-        {{ dark() ? '☀' : '☾' }}
-      </button>
-    </div>
   </header>
 
   <main class="content" [class.no-scroll]="activeTab() === 'movimientos'" (touchstart)="onPullTouchStart($event)" (touchmove)="onPullTouchMove($event)" (touchend)="onPullTouchEnd()">
@@ -85,12 +80,30 @@
       </div>
     }
 
-    @if (activeTab() === 'resumen') {
-      <div class="section-title">Resumen (filtrado actual)</div>
+    @if (activeTab() === 'ajustes') {
+      <div class="section-title">Ajustes</div>
       <div class="card">
-        <div class="total-bar"><span>Total filtrado</span><strong>{{ formatAmount(totalAllFiltered()) }}</strong></div>
-        <div class="cell"><div><div class="cell-title">Elementos</div><div class="cell-meta">Movimientos visibles</div></div><div class="cell-price">{{ filteredMovements().length }}</div></div>
-        <div class="cell"><div><div class="cell-title">Archivos incluidos</div><div class="cell-meta">Seleccionados para filtrar</div></div><div class="cell-price">{{ selectedFileIds().size }}</div></div>
+        <div class="cell">
+          <div><div class="cell-title">Tema</div><div class="cell-meta">Apariencia de la app</div></div>
+          <div class="chips">
+            <button type="button" class="chip sm" [class.chip-active]="!dark()" (click)="setTheme(false)">Claro</button>
+            <button type="button" class="chip sm" [class.chip-active]="dark()" (click)="setTheme(true)">Oscuro</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">Datos</div>
+      <div class="card">
+        <div class="cell">
+          <div><div class="cell-title">Almacenamiento</div><div class="cell-meta">Guardado en este dispositivo</div></div>
+          <div class="cell-meta">{{ files().length }} archivos · {{ totalMovements() }} movimientos</div>
+        </div>
+        <button type="button" class="cell selectable-row" (click)="clearAllData()">
+          <div style="min-width:0; flex:1; text-align:left;">
+            <div class="cell-title" style="color: var(--danger);">Borrar todos los datos</div>
+            <div class="cell-meta">Elimina archivos y movimientos</div>
+          </div>
+        </button>
       </div>
     }
   </main>
