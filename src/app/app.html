@@ -5,94 +5,141 @@
   </header>
 
   <main class="content">
+    @if (activeTab() === 'cargar') {
+      <div class="section-title">Cargar estado de cuenta</div>
+      <div class="card" style="padding: 14px; gap: 10px;">
+        <p class="sheet-note">Subí tu PDF. Se intentará leer las columnas y podrás ajustar el mapeo (fecha, descripción, monto, referencia/crédito).</p>
+        <label class="btn btn-primary" style="display:inline-flex; justify-content:center; cursor:pointer;">
+          Seleccionar PDF
+          <input type="file" accept="application/pdf" (change)="onFileSelected($event)" hidden />
+        </label>
+        @if (fileName()) {
+          <div class="cell-meta">Archivo: {{ fileName() }}</div>
+        }
+        @if (loading()) {
+          <div class="cell-meta">Leyendo PDF…</div>
+        }
+        @if (error()) {
+          <div class="cell-meta" style="color: var(--danger);">{{ error() }}</div>
+        }
+      </div>
+
+      @if (rawRows().length > 0) {
+        <div class="section-title">Mapeo de columnas</div>
+        <div class="card" style="padding: 12px; gap: 10px;">
+          <p class="sheet-note">Elegí qué columna corresponde a cada campo según la vista previa detectada.</p>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <label class="field">
+              <span class="field-label">Fecha (col)</span>
+              <select class="field-input" [value]="columnMap().date" (change)="updateMap('date', +$any($event.target).value)">
+                @for (i of indexOptions(); track i) { <option [value]="i">{{ i }}</option> }
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">Referencia (col)</span>
+              <select class="field-input" [value]="columnMap().reference" (change)="updateMap('reference', +$any($event.target).value)">
+                <option [value]="-1">- (ninguna)</option>
+                @for (i of indexOptions(); track i) { <option [value]="i">{{ i }}</option> }
+              </select>
+            </label>
+            <label class="field" style="grid-column: 1 / -1;">
+              <span class="field-label">Descripción (col)</span>
+              <select class="field-input" [value]="columnMap().description" (change)="updateMap('description', +$any($event.target).value)">
+                @for (i of indexOptions(); track i) { <option [value]="i">{{ i }}</option> }
+              </select>
+            </label>
+            <label class="field" style="grid-column: 1 / -1;">
+              <span class="field-label">Monto / Crédito (col)</span>
+              <select class="field-input" [value]="columnMap().amount" (change)="updateMap('amount', +$any($event.target).value)">
+                @for (i of indexOptions(); track i) { <option [value]="i">{{ i }}</option> }
+              </select>
+            </label>
+          </div>
+          <button type="button" class="btn btn-primary" (click)="applyMapping()">Aplicar mapeo</button>
+          <div class="cell-meta">Movimientos detectados: <strong>{{ movements().length }}</strong></div>
+        </div>
+
+        <div class="section-title">Vista previa (filas detectadas)</div>
+        <div class="card">
+          @for (row of rawRows().slice(0, 20); track $index) {
+            <div class="cell" style="flex-direction:column; align-items:flex-start; gap:4px;">
+              <div class="cell-meta" style="word-break:break-word;">{{ row.text }}</div>
+              <div class="cell-meta">celdas: {{ row.cells.join(' | ') }}</div>
+            </div>
+          }
+          @if (rawRows().length > 20) {
+            <div class="empty">Mostrando 20 de {{ rawRows().length }} filas detectadas.</div>
+          }
+        </div>
+      }
+    }
+
     @if (activeTab() === 'movimientos') {
       <div class="section-title">Movimientos</div>
+      <div class="search-field" style="margin:0 0 4px;">
+        <input class="search-input" type="text" placeholder="Buscar por descripción, fecha o referencia" [value]="search()" (input)="onSearch($any($event.target).value)" />
+      </div>
       <div class="card">
         @if (filteredMovements().length === 0) {
-          <div class="empty">No hay movimientos para mostrar.</div>
+          <div class="empty">No hay movimientos. Cargá un PDF y aplicá el mapeo en la pestaña Cargar.</div>
         } @else {
           @for (item of filteredMovements(); track item.id) {
             <div class="cell">
-              <div>
-                <div class="cell-title">{{ item.description }}</div>
-                <div class="cell-meta">{{ item.date }}</div>
+              <div style="min-width:0;">
+                <div class="cell-title" style="overflow:hidden; text-overflow:ellipsis;">{{ item.description || '(sin descripción)' }}</div>
+                <div class="cell-meta">{{ item.date }} @if (item.reference) { · Ref {{ item.reference }} }</div>
               </div>
-              <div class="cell-price">${{ formatAmount(item.amount) }}</div>
+              <div class="cell-price" [style.color]="item.amount < 0 ? 'var(--accent-text)' : 'var(--text)'">{{ formatAmount(item.amount) }}</div>
             </div>
           }
         }
       </div>
-    } @else {
+    }
+
+    @if (activeTab() === 'resumen') {
       <div class="section-title">Resumen</div>
       <div class="card">
         <div class="total-bar">
-          <span>Total filtrado</span>
-          <strong>${{ formatAmount(total()) }}</strong>
+          <span>Total (lista actual)</span>
+          <strong>{{ formatAmount(total()) }}</strong>
         </div>
         <div class="cell">
           <div>
             <div class="cell-title">Elementos</div>
-            <div class="cell-meta">Cantidad en la lista actual</div>
+            <div class="cell-meta">Cantidad filtrada</div>
           </div>
           <div class="cell-price">{{ filteredMovements().length }}</div>
         </div>
         <div class="cell">
           <div>
-            <div class="cell-title">Filtro activo</div>
-            <div class="cell-meta">Criterio aplicado a la lista</div>
+            <div class="cell-title">Filtro</div>
+            <div class="cell-meta">Criterio aplicado</div>
           </div>
-          <div class="cell-price">{{ filter() === 'todos' ? 'Todos' : '≥ $15' }}</div>
+          <div class="cell-price">{{ filter() === 'todos' ? 'Todos' : (filter() === 'debitos' ? 'Débitos' : 'Créditos') }}</div>
         </div>
       </div>
-      <p class="sheet-note">Subí tu PDF de estado de cuenta, mapeá columnas y usá esta vista para sumar y revisar elementos.</p>
+      <p class="sheet-note">El total suma los montos visibles (los abonos/pagos suelen venir en negativo según el estado).</p>
     }
   </main>
 
-  <button type="button" class="fab" aria-label="Crear" (click)="createMovement()">+</button>
-
   <nav class="tab-bar" aria-label="Tabs">
     @for (tab of tabs; track tab.id) {
-      <button
-        type="button"
-        class="tab"
-        [class.tab-active]="activeTab() === tab.id"
-        (click)="setTab(tab.id)"
-      >
+      <button type="button" class="tab" [class.tab-active]="activeTab() === tab.id" (click)="setTab(tab.id)">
         <span aria-hidden="true">{{ tab.icon }}</span>
         <span>{{ tab.label }}</span>
       </button>
     }
   </nav>
 
-  @if (snackbar(); as note) {
-    <div class="snackbar" role="status" aria-live="polite">
-      <span>{{ note.message }}</span>
-      <button type="button" (click)="undoCreate()">Deshacer</button>
-    </div>
-  }
-
   <div class="sheet-overlay" [class.open]="filterOpen()">
     <div class="sheet-backdrop" (click)="closeFilter()"></div>
     <div class="sheet-panel" role="dialog" aria-label="Filtros">
       <div class="sheet-title">Filtrar movimientos</div>
-      <p class="sheet-note">Elegí qué elementos querés ver y sumar.</p>
+      <p class="sheet-note">Filtrá por tipo de monto y usá el buscador para agrupar por descripción.</p>
       <div class="chips">
-        <button
-          type="button"
-          class="chip"
-          [class.chip-active]="filter() === 'todos'"
-          (click)="setFilter('todos')"
-        >
-          Todos
-        </button>
-        <button
-          type="button"
-          class="chip"
-          [class.chip-active]="filter() === 'mayores'"
-          (click)="setFilter('mayores')"
-        >
-          Montos ≥ $15
-        </button>
+        <button type="button" class="chip" [class.chip-active]="filter() === 'todos'" (click)="setFilter('todos')">Todos</button>
+        <button type="button" class="chip" [class.chip-active]="filter() === 'debitos'" (click)="setFilter('debitos')">Débitos (+)</button>
+        <button type="button" class="chip" [class.chip-active]="filter() === 'creditos'" (click)="setFilter('creditos')">Créditos/abonos (-)</button>
       </div>
       <div class="sheet-actions">
         <button type="button" class="btn btn-ghost" (click)="closeFilter()">Cerrar</button>

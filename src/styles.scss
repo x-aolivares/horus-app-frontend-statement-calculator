@@ -106,7 +106,7 @@ input { font: inherit; color: inherit; }
   overflow-y: auto;
   gap: 14px;
   padding: 16px;
-  padding-bottom: calc(140px + var(--safe-bottom));
+  padding-bottom: calc(90px + var(--safe-bottom));
 }
 .content > * { flex-shrink: 0; }
 
@@ -219,6 +219,39 @@ input { font: inherit; color: inherit; }
 }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-ghost { background: var(--field-bg); color: var(--text); }
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--field-bg);
+  border-radius: 12px;
+  padding: 0 12px;
+  min-height: 44px;
+  color: var(--text-2);
+}
+.search-input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  min-height: 42px;
+  font-size: 15px;
+  color: var(--text);
+}
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field-label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.field-input {
+  min-height: 42px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text);
+  padding: 0 10px;
+  outline: none;
+  font-size: 14px;
+  width: 100%;
+}
 
 .snackbar {
   position: absolute;
