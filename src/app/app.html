@@ -1,9 +1,14 @@
 <div class="screen">
   <header class="nav-bar">
     <div class="nav-title">Statement Calculator</div>
-    @if (activeTab() === 'movimientos') {
-      <button type="button" class="nav-btn" (click)="openFilter()">Filtros</button>
-    }
+    <div class="nav-actions">
+      @if (activeTab() === 'movimientos') {
+        <button type="button" class="nav-btn" (click)="openFilter()">Filtros</button>
+      }
+      <button type="button" class="nav-btn theme-btn" (click)="toggleTheme()" [attr.aria-label]="dark() ? 'Modo claro' : 'Modo oscuro'">
+        {{ dark() ? '☀' : '☾' }}
+      </button>
+    </div>
   </header>
 
   <main class="content" [class.no-scroll]="activeTab() === 'movimientos'">

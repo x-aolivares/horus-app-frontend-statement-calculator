@@ -101,6 +101,8 @@ input { font: inherit; color: inherit; }
   font-weight: 600;
 }
 .nav-btn:active { background: var(--field-bg); }
+.nav-actions { display: flex; align-items: center; gap: 8px; }
+.theme-btn { width: 36px; padding: 0; justify-content: center; display: inline-flex; align-items: center; }
 
 .content {
   display: flex;

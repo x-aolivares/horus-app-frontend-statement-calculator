@@ -1,4 +1,4 @@
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, effect, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
 type TabId = 'archivos' | 'movimientos' | 'resumen';
@@ -71,6 +71,15 @@ export class App {
   protected readonly dateTo = signal('');
   protected readonly sortOrder = signal<'date-desc' | 'date-asc'>('date-desc');
   protected readonly selectedIds = signal<Set<string>>(new Set());
+  protected readonly dark = signal<boolean>(this.loadTheme());
+
+  private themeEffect = effect(() => {
+    const dark = this.dark();
+    const root = document.documentElement;
+    if (dark) root.setAttribute('data-theme', 'dark');
+    else root.removeAttribute('data-theme');
+    try { localStorage.setItem('horus-theme', dark ? 'dark' : 'light'); } catch { /* ignore */ }
+  });
 
   private idSeq = Date.now();
 
@@ -130,6 +139,16 @@ export class App {
   protected onDateTo(v: string) { this.dateTo.set(v); }
   protected toggleSort() {
     this.sortOrder.update((s) => (s === 'date-desc' ? 'date-asc' : 'date-desc'));
+  }
+  protected toggleTheme() {
+    this.dark.update((v) => !v);
+  }
+  private loadTheme(): boolean {
+    try {
+      const saved = localStorage.getItem('horus-theme');
+      if (saved === 'dark' || saved === 'light') return saved === 'dark';
+    } catch { /* ignore */ }
+    return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
   }
 
   protected isFileSelected(id: string) { return this.selectedFileIds().has(id); }
