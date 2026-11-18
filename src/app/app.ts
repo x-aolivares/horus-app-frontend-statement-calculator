@@ -69,6 +69,7 @@ export class App {
   protected readonly search = signal('');
   protected readonly dateFrom = signal('');
   protected readonly dateTo = signal('');
+  protected readonly sortOrder = signal<'date-desc' | 'date-asc'>('date-desc');
   protected readonly selectedIds = signal<Set<string>>(new Set());
 
   private idSeq = Date.now();
@@ -82,7 +83,7 @@ export class App {
     const q = this.search().trim().toLowerCase();
     const from = this.parseInputDate(this.dateFrom());
     const to = this.parseInputDate(this.dateTo(), true);
-    return this.allMovements().filter((m) => {
+    const list = this.allMovements().filter((m) => {
       if (this.filter() === 'debitos' && m.amount < 0) return false;
       if (this.filter() === 'creditos' && m.amount > 0) return false;
       if (q && !`${m.description} ${m.date} ${m.reference} ${m.fileName} ${m.raw}`.toLowerCase().includes(q)) return false;
@@ -92,6 +93,13 @@ export class App {
         if (to !== null && m.dateValue > to) return false;
       }
       return true;
+    });
+    const dir = this.sortOrder() === 'date-desc' ? -1 : 1;
+    return [...list].sort((a, b) => {
+      const av = a.dateValue ?? -Infinity;
+      const bv = b.dateValue ?? -Infinity;
+      if (av === bv) return 0;
+      return av > bv ? dir : -dir;
     });
   });
 
@@ -119,6 +127,9 @@ export class App {
   protected onSearch(v: string) { this.search.set(v); }
   protected onDateFrom(v: string) { this.dateFrom.set(v); }
   protected onDateTo(v: string) { this.dateTo.set(v); }
+  protected toggleSort() {
+    this.sortOrder.update((s) => (s === 'date-desc' ? 'date-asc' : 'date-desc'));
+  }
 
   protected isFileSelected(id: string) { return this.selectedFileIds().has(id); }
   protected toggleFileSelection(id: string) {
