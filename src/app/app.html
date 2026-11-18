@@ -1,33 +1,27 @@
 <div class="screen">
   <header class="nav-bar">
     <div class="nav-title">Statement Calculator</div>
-    <button type="button" class="nav-btn" (click)="openFilter()">Filtrar</button>
+    @if (activeTab() === 'movimientos') {
+      <button type="button" class="nav-btn" (click)="openFilter()">Filtros</button>
+    }
   </header>
 
   <main class="content">
-    @if (activeTab() === 'cargar') {
-      <div class="section-title">Cargar estado de cuenta</div>
-      <div class="card" style="padding: 14px; gap: 10px;">
-        <p class="sheet-note">Subí tu PDF. Se intentará leer las columnas y podrás ajustar el mapeo (fecha, descripción, monto, referencia/crédito).</p>
-        <label class="btn btn-primary" style="display:flex; width:100%; align-items:center; justify-content:center; text-align:center; cursor:pointer; margin: 0 auto;">
-          <span style="width:100%; text-align:center;">Seleccionar PDF</span>
-          <input type="file" accept="application/pdf" (change)="onFileSelected($event)" hidden />
-        </label>
-        @if (fileName()) {
-          <div class="cell-meta">Archivo: {{ fileName() }}</div>
-        }
-        @if (loading()) {
-          <div class="cell-meta">Leyendo PDF…</div>
-        }
-        @if (error()) {
-          <div class="cell-meta" style="color: var(--danger);">{{ error() }}</div>
-        }
-      </div>
+    @if (activeTab() === 'archivos') {
+      <div class="section-title">Estados de cuenta</div>
+      <p class="sheet-note">Importá tus PDFs (se guardan localmente en este dispositivo). Podés seleccionar cuáles incluir en el filtrado combinado.</p>
 
-      @if (rawRows().length > 0) {
-        <div class="section-title">Mapeo de columnas</div>
+      @if (error()) {
+        <div class="card" style="padding:12px; color: var(--danger); font-size:13px;">{{ error() }}</div>
+      }
+      @if (loading()) {
+        <div class="card" style="padding:12px; font-size:13px; color: var(--text-2);">Leyendo PDF…</div>
+      }
+
+      @if (pendingFileName()) {
+        <div class="section-title">Nuevo archivo: {{ pendingFileName() }}</div>
         <div class="card" style="padding: 12px; gap: 10px;">
-          <p class="sheet-note">Elegí qué columna corresponde a cada campo según la vista previa detectada.</p>
+          <p class="sheet-note">Ajustá el mapeo de columnas si hace falta y aplicalo antes de guardar.</p>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
             <label class="field">
               <span class="field-label">Fecha (col)</span>
@@ -55,23 +49,51 @@
               </select>
             </label>
           </div>
-          <button type="button" class="btn btn-primary" (click)="applyMapping()">Aplicar mapeo</button>
-          <div class="cell-meta">Movimientos detectados: <strong>{{ movements().length }}</strong></div>
+          <div class="sheet-actions">
+            <button type="button" class="btn btn-ghost" (click)="applyPendingMapping()">Aplicar mapeo</button>
+            <button type="button" class="btn btn-primary" (click)="savePendingAsStatement()">Guardar</button>
+          </div>
+          <button type="button" class="chip" (click)="cancelPending()">Cancelar importación</button>
+          <div class="cell-meta">Movimientos detectados: <strong>{{ pendingMovements().length }}</strong></div>
         </div>
 
-        <div class="section-title">Vista previa (filas detectadas)</div>
+        <div class="section-title">Vista previa</div>
         <div class="card">
-          @for (row of rawRows().slice(0, 20); track $index) {
+          @for (row of rawRows().slice(0, 12); track $index) {
             <div class="cell" style="flex-direction:column; align-items:flex-start; gap:4px;">
               <div class="cell-meta" style="word-break:break-word;">{{ row.text }}</div>
-              <div class="cell-meta">celdas: {{ row.cells.join(' | ') }}</div>
             </div>
           }
-          @if (rawRows().length > 20) {
-            <div class="empty">Mostrando 20 de {{ rawRows().length }} filas detectadas.</div>
-          }
+          @if (rawRows().length > 12) { <div class="empty">Mostrando 12 de {{ rawRows().length }} filas.</div> }
         </div>
       }
+
+      <div class="section-title">Archivos importados</div>
+      @if (files().length > 0) {
+        <div class="chips" style="margin-bottom:4px;">
+          <button type="button" class="chip sm" (click)="selectAllFiles()">Seleccionar todos</button>
+          <button type="button" class="chip sm" (click)="clearFileSelection()">Ninguno</button>
+        </div>
+      }
+      <div class="card">
+        @if (files().length === 0) {
+          <div class="empty">No hay archivos importados. Usá el botón + para importar un PDF.</div>
+        } @else {
+          @for (f of files(); track f.id) {
+            <div class="cell file-row" [class.selected]="isFileSelected(f.id)">
+              <button type="button" class="file-main" (click)="toggleFileSelection(f.id)">
+                <div class="row-check" aria-hidden="true">{{ isFileSelected(f.id) ? '✓' : '' }}</div>
+                <div style="min-width:0; flex:1; text-align:left;">
+                  <div class="cell-title" style="overflow:hidden; text-overflow:ellipsis;">{{ f.name }}</div>
+                  <div class="cell-meta">{{ f.movements.length }} movimientos · {{ formatDate(f.importedAt) }}</div>
+                </div>
+              </button>
+              <button type="button" class="cell-icon-btn" aria-label="Eliminar" (click)="removeFile(f.id)">✕</button>
+            </div>
+          }
+        }
+      </div>
+      <p class="sheet-note">Marcá los archivos que querés incluir y abrí “Movimientos” para filtrarlos y sumar selecciones en conjunto.</p>
     }
 
     @if (activeTab() === 'movimientos') {
@@ -79,7 +101,7 @@
         <div class="selection-top">
           <div>
             <div class="cell-title">Selección</div>
-            <div class="cell-meta">{{ selectionSummary().count }} de {{ filteredMovements().length }} visibles seleccionados</div>
+            <div class="cell-meta">{{ selectionSummary().count }} de {{ filteredMovements().length }} visibles · {{ selectedFileIds().size }} archivo(s)</div>
           </div>
           <div class="selection-actions">
             <button type="button" class="chip sm" (click)="selectVisible()">Seleccionar visibles</button>
@@ -87,38 +109,28 @@
           </div>
         </div>
         <div class="selection-totals">
-          <div class="sum-box">
-            <span class="sum-label">Débitos</span>
-            <strong>{{ formatAmount(selectionSummary().debits) }}</strong>
-          </div>
-          <div class="sum-box">
-            <span class="sum-label">Créditos</span>
-            <strong>{{ formatAmount(selectionSummary().credits) }}</strong>
-          </div>
-          <div class="sum-box highlight">
-            <span class="sum-label">Diferencia</span>
-            <strong>{{ formatAmount(selectionSummary().net) }}</strong>
-          </div>
+          <div class="sum-box"><span class="sum-label">Débitos</span><strong>{{ formatAmount(selectionSummary().debits) }}</strong></div>
+          <div class="sum-box"><span class="sum-label">Créditos</span><strong>{{ formatAmount(selectionSummary().credits) }}</strong></div>
+          <div class="sum-box highlight"><span class="sum-label">Diferencia</span><strong>{{ formatAmount(selectionSummary().net) }}</strong></div>
         </div>
         @if (selectionSummary().count === 0) {
-          <div class="cell-meta">Tocá los registros que querés sumar (por comercio, fecha, etc.).</div>
+          <div class="cell-meta">Buscá (ej. Sonda, BGP, fecha) y seleccioná los registros que querés sumar.</div>
         }
       </div>
 
-      <div class="section-title">Movimientos</div>
       <div class="search-field" style="margin:0 0 4px;">
-        <input class="search-input" type="text" placeholder="Buscar para filtrar (ej: Sonda, BGP, 9/OCT)" [value]="search()" (input)="onSearch($any($event.target).value)" />
+        <input class="search-input" type="text" placeholder="Buscar por descripción, fecha, referencia o archivo" [value]="search()" (input)="onSearch($any($event.target).value)" />
       </div>
       <div class="card">
         @if (filteredMovements().length === 0) {
-          <div class="empty">No hay movimientos. Cargá un PDF y aplicá el mapeo en la pestaña Cargar.</div>
+          <div class="empty">No hay movimientos. Importá archivos y/o ajustá los filtros.</div>
         } @else {
           @for (item of filteredMovements(); track item.id) {
             <button type="button" class="cell selectable-row" [class.selected]="isSelected(item.id)" (click)="toggleSelection(item.id)">
               <div class="row-check" aria-hidden="true">{{ isSelected(item.id) ? '✓' : '' }}</div>
               <div style="min-width:0; flex:1; text-align:left;">
                 <div class="cell-title" style="overflow:hidden; text-overflow:ellipsis;">{{ item.description || '(sin descripción)' }}</div>
-                <div class="cell-meta">{{ item.date }} @if (item.reference) { · Ref {{ item.reference }} }</div>
+                <div class="cell-meta">{{ item.date }} @if (item.reference) { · Ref {{ item.reference }} } · {{ item.fileName }}</div>
               </div>
               <div class="cell-price" [style.color]="item.amount < 0 ? 'var(--accent-text)' : 'var(--text)'">{{ formatAmount(item.amount) }}</div>
             </button>
@@ -128,30 +140,21 @@
     }
 
     @if (activeTab() === 'resumen') {
-      <div class="section-title">Resumen</div>
+      <div class="section-title">Resumen (filtrado actual)</div>
       <div class="card">
-        <div class="total-bar">
-          <span>Total (lista actual)</span>
-          <strong>{{ formatAmount(total()) }}</strong>
-        </div>
-        <div class="cell">
-          <div>
-            <div class="cell-title">Elementos</div>
-            <div class="cell-meta">Cantidad filtrada</div>
-          </div>
-          <div class="cell-price">{{ filteredMovements().length }}</div>
-        </div>
-        <div class="cell">
-          <div>
-            <div class="cell-title">Filtro</div>
-            <div class="cell-meta">Criterio aplicado</div>
-          </div>
-          <div class="cell-price">{{ filter() === 'todos' ? 'Todos' : (filter() === 'debitos' ? 'Débitos' : 'Créditos') }}</div>
-        </div>
+        <div class="total-bar"><span>Total filtrado</span><strong>{{ formatAmount(totalAllFiltered()) }}</strong></div>
+        <div class="cell"><div><div class="cell-title">Elementos</div><div class="cell-meta">Movimientos visibles</div></div><div class="cell-price">{{ filteredMovements().length }}</div></div>
+        <div class="cell"><div><div class="cell-title">Archivos incluidos</div><div class="cell-meta">Seleccionados para filtrar</div></div><div class="cell-price">{{ selectedFileIds().size }}</div></div>
       </div>
-      <p class="sheet-note">El total suma los montos visibles (los abonos/pagos suelen venir en negativo según el estado).</p>
     }
   </main>
+
+  @if (activeTab() === 'archivos') {
+    <label class="fab" aria-label="Importar PDF" title="Importar PDF">
+      +
+      <input type="file" accept="application/pdf" (change)="onFileSelected($event)" hidden />
+    </label>
+  }
 
   <nav class="tab-bar" aria-label="Tabs">
     @for (tab of tabs; track tab.id) {
@@ -165,15 +168,25 @@
   <div class="sheet-overlay" [class.open]="filterOpen()">
     <div class="sheet-backdrop" (click)="closeFilter()"></div>
     <div class="sheet-panel" role="dialog" aria-label="Filtros">
-      <div class="sheet-title">Filtrar movimientos</div>
-      <p class="sheet-note">Filtrá por tipo de monto y usá el buscador para agrupar por descripción.</p>
+      <div class="sheet-title">Filtros</div>
+      <p class="sheet-note">Filtrá por tipo y/o por rango de fecha. La suma de selección se calcula sobre los visibles.</p>
       <div class="chips">
         <button type="button" class="chip" [class.chip-active]="filter() === 'todos'" (click)="setFilter('todos')">Todos</button>
         <button type="button" class="chip" [class.chip-active]="filter() === 'debitos'" (click)="setFilter('debitos')">Débitos (+)</button>
         <button type="button" class="chip" [class.chip-active]="filter() === 'creditos'" (click)="setFilter('creditos')">Créditos/abonos (-)</button>
       </div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <label class="field">
+          <span class="field-label">Desde</span>
+          <input class="field-input" type="date" [value]="dateFrom()" (input)="onDateFrom($any($event.target).value)" />
+        </label>
+        <label class="field">
+          <span class="field-label">Hasta</span>
+          <input class="field-input" type="date" [value]="dateTo()" (input)="onDateTo($any($event.target).value)" />
+        </label>
+      </div>
       <div class="sheet-actions">
-        <button type="button" class="btn btn-ghost" (click)="closeFilter()">Cerrar</button>
+        <button type="button" class="btn btn-ghost" (click)="setFilter('todos'); onDateFrom(''); onDateTo('')">Limpiar</button>
         <button type="button" class="btn btn-primary" (click)="closeFilter()">Aplicar</button>
       </div>
     </div>
