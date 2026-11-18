@@ -325,6 +325,10 @@ input { font: inherit; color: inherit; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: none;
+}
+.movements-list::-webkit-scrollbar {
+  display: none;
 }
 .movements-list.card {
   border: none;
@@ -361,6 +365,8 @@ input { font: inherit; color: inherit; }
   width: 100%;
   cursor: pointer;
   text-align: left;
+  border: none;
+  background: none;
 }
 .selectable-row.selected { background: var(--accent-soft); }
 .row-check {
