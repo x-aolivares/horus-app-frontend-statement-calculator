@@ -29,15 +29,19 @@
           <div class="empty">Usá + para importar un PDF.</div>
         } @else {
           @for (f of files(); track f.id) {
-            <div class="cell file-row" [class.selected]="isFileSelected(f.id)" [class.swiped]="swipedFileId() === f.id" (touchstart)="onRowTouchStart($event)" (touchmove)="onRowTouchMove($event, f.id)">
-              <button type="button" class="file-main" (click)="toggleFileSelection(f.id)">
-                <div class="row-check" aria-hidden="true">{{ isFileSelected(f.id) ? '✓' : '' }}</div>
-                <div style="min-width:0; flex:1; text-align:left;">
-                  <div class="cell-title" style="overflow:hidden; text-overflow:ellipsis;">{{ f.name }}</div>
-                  <div class="cell-meta">{{ f.movements.length }} movimientos</div>
-                </div>
-              </button>
-              <button type="button" class="cell-icon-btn" aria-label="Eliminar" (click)="removeFile(f.id)">✕</button>
+            <div class="file-swipe" [class.swiped]="swipedFileId() === f.id">
+              <div class="file-actions" aria-hidden="false">
+                <button type="button" class="swipe-delete" aria-label="Eliminar archivo" (click)="removeFile(f.id)">Eliminar</button>
+              </div>
+              <div class="cell file-row" [class.selected]="isFileSelected(f.id)" (touchstart)="onRowTouchStart($event)" (touchmove)="onRowTouchMove($event, f.id)">
+                <button type="button" class="file-main" (click)="toggleFileSelection(f.id)">
+                  <div class="row-check" aria-hidden="true">{{ isFileSelected(f.id) ? '✓' : '' }}</div>
+                  <div style="min-width:0; flex:1; text-align:left;">
+                    <div class="cell-title" style="overflow:hidden; text-overflow:ellipsis;">{{ f.name }}</div>
+                    <div class="cell-meta">{{ f.movements.length }} movimientos</div>
+                  </div>
+                </button>
+              </div>
             </div>
           }
         }
