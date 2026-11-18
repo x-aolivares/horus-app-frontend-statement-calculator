@@ -109,6 +109,13 @@ input { font: inherit; color: inherit; }
   padding-bottom: calc(90px + var(--safe-bottom));
 }
 .content > * { flex-shrink: 0; }
+.content.no-scroll {
+  overflow: hidden;
+}
+.content.no-scroll > .movements-layout {
+  flex: 1 1 0;
+  min-height: 0;
+}
 
 .card {
   display: flex;
@@ -275,6 +282,13 @@ input { font: inherit; color: inherit; }
 .total-bar strong { color: var(--accent); font-size: 16px; font-variant-numeric: tabular-nums; }
 
 .chip.sm { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.movements-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 14px;
+}
 .selection-bar {
   position: sticky;
   top: 0;
@@ -282,6 +296,14 @@ input { font: inherit; color: inherit; }
   padding: 12px;
   gap: 10px;
   border: 1px solid var(--accent-border);
+}
+.movements-layout .selection-bar {
+  position: static;
+}
+.movements-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .selection-top {
   display: flex;

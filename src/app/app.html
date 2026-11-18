@@ -6,7 +6,7 @@
     }
   </header>
 
-  <main class="content">
+  <main class="content" [class.no-scroll]="activeTab() === 'movimientos'">
     @if (activeTab() === 'archivos') {
       <div class="section-title">Estados de cuenta</div>
 
@@ -45,44 +45,47 @@
     }
 
     @if (activeTab() === 'movimientos') {
-      <div class="selection-bar card">
-        <div class="selection-top">
-          <div class="cell-meta">{{ selectionSummary().count }} / {{ filteredMovements().length }}</div>
-          <div class="selection-actions">
-            <button type="button" class="chip sm" (click)="selectVisible()">Visibles</button>
-            <button type="button" class="chip sm" (click)="clearSelection()">Limpiar</button>
+      <div class="movements-layout">
+        <div class="selection-bar card">
+          <div class="selection-top">
+            <div class="cell-meta">{{ selectionSummary().count }} / {{ filteredMovements().length }}</div>
+            <div class="selection-actions">
+              <button type="button" class="chip sm" (click)="selectVisible()">Visibles</button>
+              <button type="button" class="chip sm" (click)="clearSelection()">Limpiar</button>
+            </div>
+          </div>
+          <div class="selection-totals">
+            <div class="sum-box"><span class="sum-label">Débitos</span><strong>{{ formatAmount(selectionSummary().debits) }}</strong></div>
+            <div class="sum-box"><span class="sum-label">Créditos</span><strong>{{ formatAmount(selectionSummary().credits) }}</strong></div>
+            <div class="sum-box highlight"><span class="sum-label">Diferencia</span><strong>{{ formatAmount(selectionSummary().net) }}</strong></div>
           </div>
         </div>
-        <div class="selection-totals">
-          <div class="sum-box"><span class="sum-label">Débitos</span><strong>{{ formatAmount(selectionSummary().debits) }}</strong></div>
-          <div class="sum-box"><span class="sum-label">Créditos</span><strong>{{ formatAmount(selectionSummary().credits) }}</strong></div>
-          <div class="sum-box highlight"><span class="sum-label">Diferencia</span><strong>{{ formatAmount(selectionSummary().net) }}</strong></div>
-        </div>
-      </div>
 
-      <div style="display:flex; gap:8px; align-items:center; margin:0 0 4px;">
-        <div class="search-field" style="flex:1; margin:0;">
-          <input class="search-input" type="text" placeholder="Buscar (Sonda, BGP, fecha…)" [value]="search()" (input)="onSearch($any($event.target).value)" />
+        <div style="display:flex; gap:8px; align-items:center;">
+          <div class="search-field" style="flex:1; margin:0;">
+            <input class="search-input" type="text" placeholder="Buscar (Sonda, BGP, fecha…)" [value]="search()" (input)="onSearch($any($event.target).value)" />
+          </div>
+          <button type="button" class="chip sm" (click)="toggleSort()" [attr.aria-label]="sortOrder() === 'date-desc' ? 'Más recientes primero' : 'Más antiguos primero'">
+            {{ sortOrder() === 'date-desc' ? '↓ Fecha' : '↑ Fecha' }}
+          </button>
         </div>
-        <button type="button" class="chip sm" (click)="toggleSort()" [attr.aria-label]="sortOrder() === 'date-desc' ? 'Más recientes primero' : 'Más antiguos primero'">
-          {{ sortOrder() === 'date-desc' ? '↓ Fecha' : '↑ Fecha' }}
-        </button>
-      </div>
-      <div class="card">
-        @if (filteredMovements().length === 0) {
-          <div class="empty">No hay movimientos. Importá archivos y/o ajustá los filtros.</div>
-        } @else {
-          @for (item of filteredMovements(); track item.id) {
-            <button type="button" class="cell selectable-row" [class.selected]="isSelected(item.id)" (click)="toggleSelection(item.id)">
-              <div class="row-check" aria-hidden="true">{{ isSelected(item.id) ? '✓' : '' }}</div>
-              <div style="min-width:0; flex:1; text-align:left;">
-                <div class="cell-title" style="overflow:hidden; text-overflow:ellipsis;">{{ item.description || '(sin descripción)' }}</div>
-                <div class="cell-meta">{{ item.date }} @if (item.reference) { · Ref {{ item.reference }} } · {{ item.fileName }}</div>
-              </div>
-              <div class="cell-price" [style.color]="item.amount < 0 ? 'var(--accent-text)' : 'var(--text)'">{{ formatAmount(item.amount) }}</div>
-            </button>
+
+        <div class="card movements-list">
+          @if (filteredMovements().length === 0) {
+            <div class="empty">No hay movimientos.</div>
+          } @else {
+            @for (item of filteredMovements(); track item.id) {
+              <button type="button" class="cell selectable-row" [class.selected]="isSelected(item.id)" (click)="toggleSelection(item.id)">
+                <div class="row-check" aria-hidden="true">{{ isSelected(item.id) ? '✓' : '' }}</div>
+                <div style="min-width:0; flex:1; text-align:left;">
+                  <div class="cell-title" style="overflow:hidden; text-overflow:ellipsis;">{{ item.description || '(sin descripción)' }}</div>
+                  <div class="cell-meta">{{ item.date }} @if (item.reference) { · Ref {{ item.reference }} } · {{ item.fileName }}</div>
+                </div>
+                <div class="cell-price" [style.color]="item.amount < 0 ? 'var(--accent-text)' : 'var(--text)'">{{ formatAmount(item.amount) }}</div>
+              </button>
+            }
           }
-        }
+        </div>
       </div>
     }
 
