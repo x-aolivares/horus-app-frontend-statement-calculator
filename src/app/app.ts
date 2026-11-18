@@ -95,7 +95,7 @@ export class App {
       return true;
     });
     const dir = this.sortOrder() === 'date-desc' ? -1 : 1;
-    return [...list].sort((a, b) => {
+    return list.toSorted((a, b) => {
       const av = a.dateValue ?? -Infinity;
       const bv = b.dateValue ?? -Infinity;
       if (av === bv) return 0;
