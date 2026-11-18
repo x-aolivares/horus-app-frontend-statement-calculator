@@ -228,20 +228,31 @@ export class App {
   }
 
   protected onPullTouchStart(e: TouchEvent) {
-    if (this.activeTab() !== 'archivos') { this.pulling = false; return; }
-    const el = e.currentTarget as HTMLElement;
-    this.pulling = el.scrollTop <= 0;
+    const content = e.currentTarget as HTMLElement;
+    const target = e.target as HTMLElement | null;
+    let atTop = content.scrollTop <= 0;
+    if (this.activeTab() === 'movimientos') {
+      const list = content.querySelector('.movements-list') as HTMLElement | null;
+      if (!list) { this.pulling = false; return; }
+      if (!target || !list.contains(target)) { this.pulling = false; return; }
+      atTop = list.scrollTop <= 0;
+    }
+    this.pulling = atTop;
     this.pullStartY = e.touches[0].clientY;
   }
   protected onPullTouchMove(e: TouchEvent) {
-    if (!this.pulling || this.refreshing() || this.activeTab() !== 'archivos') return;
+    if (!this.pulling || this.refreshing()) return;
+    if (this.activeTab() === 'movimientos') {
+      const content = e.currentTarget as HTMLElement;
+      const list = content.querySelector('.movements-list') as HTMLElement | null;
+      if (!list || list.scrollTop > 0) { this.pulling = false; this.pullDistance.set(0); return; }
+    }
     const dy = e.touches[0].clientY - this.pullStartY;
     if (dy > 0) this.pullDistance.set(Math.min(Math.round(dy * 0.5), 56));
   }
   protected async onPullTouchEnd() {
     if (!this.pulling) return;
     this.pulling = false;
-    if (this.activeTab() !== 'archivos') { this.pullDistance.set(0); return; }
     if (this.pullDistance() < 48) { this.pullDistance.set(0); return; }
     this.refreshing.set(true);
     await new Promise((r) => setTimeout(r, 600));
