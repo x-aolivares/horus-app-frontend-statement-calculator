@@ -332,6 +332,14 @@ input { font: inherit; color: inherit; }
 .movements-list::-webkit-scrollbar {
   display: none;
 }
+
+/* 4-column grid for paired fields (2 + 2 of 4) */
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.filters-grid .field { grid-column: span 2; }
 .movements-list.card {
   border: none;
   box-shadow: none;
@@ -344,11 +352,13 @@ input { font: inherit; color: inherit; }
   gap: 8px;
 }
 .selection-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+/* 4-column grid (mobile base of the 4/8/12 system) */
 .selection-totals {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
+.sum-box { grid-column: span 1; }
 .sum-box {
   background: var(--field-bg);
   border-radius: 10px;
@@ -359,7 +369,7 @@ input { font: inherit; color: inherit; }
   min-width: 0;
 }
 .sum-box strong { font-size: 13px; font-variant-numeric: tabular-nums; }
-.sum-box.highlight { background: var(--accent-soft); color: var(--accent-text); }
+.sum-box.highlight { background: var(--accent-soft); color: var(--accent-text); grid-column: span 2; }
 .sum-label { font-size: 11px; color: var(--text-2); font-weight: 600; }
 .sum-box.highlight .sum-label { color: var(--accent-text); }
 

@@ -127,7 +127,7 @@
         <button type="button" class="chip" [class.chip-active]="filter() === 'debitos'" (click)="setFilter('debitos')">Débitos</button>
         <button type="button" class="chip" [class.chip-active]="filter() === 'creditos'" (click)="setFilter('creditos')">Créditos</button>
       </div>
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+      <div class="filters-grid">
         <label class="field">
           <span class="field-label">Desde</span>
           <input class="field-input" type="date" [value]="dateFrom()" (input)="onDateFrom($any($event.target).value)" />
