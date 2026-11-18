@@ -326,6 +326,11 @@ input { font: inherit; color: inherit; }
   min-height: 0;
   overflow-y: auto;
 }
+.movements-list.card {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
 .selection-top {
   display: flex;
   align-items: flex-start;
