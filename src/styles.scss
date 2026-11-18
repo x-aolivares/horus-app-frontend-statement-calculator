@@ -188,7 +188,7 @@ input { font: inherit; color: inherit; }
   bottom: calc(84px + var(--safe-bottom));
   width: 56px;
   height: 56px;
-  border-radius: 18px;
+  border-radius: 50%;
   border: none;
   background: var(--accent);
   color: var(--on-accent);
