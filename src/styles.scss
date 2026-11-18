@@ -414,12 +414,9 @@ input { font: inherit; color: inherit; }
 .pull-icon.spinning { animation: pull-spin 0.8s linear infinite; }
 @keyframes pull-spin { to { transform: rotate(360deg); } }
 
-/* swipe action: reveal delete on touch devices, always visible with pointer */
-@media (hover: none) {
-  .file-row:not(.swiped) .cell-icon-btn { display: none; }
-}
-.file-row .cell-icon-btn { transition: opacity 0.15s ease; }
+.file-row .cell-icon-btn { transition: background 0.15s ease, color 0.15s ease; }
 .file-row.swiped .cell-icon-btn { background: var(--danger); color: var(--on-accent); border-color: var(--danger); }
+.file-main:active { opacity: 0.7; }
 .file-main {
   flex: 1;
   display: flex;

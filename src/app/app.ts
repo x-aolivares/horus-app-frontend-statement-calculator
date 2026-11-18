@@ -31,6 +31,7 @@ interface StatementFile {
   id: string;
   name: string;
   importedAt: string;
+  fingerprint?: string;
   movements: Movement[];
 }
 
@@ -274,7 +275,17 @@ export class App {
     this.error.set(null);
     this.loading.set(true);
     try {
-      const rows = await this.extractRows(file);
+      const data = await file.arrayBuffer();
+      const fingerprint = await this.hashBuffer(data);
+      const duplicate = this.files().find((f) =>
+        f.fingerprint ? f.fingerprint === fingerprint : f.name === file.name,
+      );
+      if (duplicate) {
+        this.error.set('Este archivo ya fue importado.');
+        return;
+      }
+
+      const rows = await this.extractRows(data);
       this.rawRows.set(rows);
       this.pendingFileName.set(file.name);
       this.autoDetectMap(rows);
@@ -290,6 +301,7 @@ export class App {
         id: fileId,
         name: file.name,
         importedAt: new Date().toISOString(),
+        fingerprint,
         movements: movements.map((m) => ({ ...m, fileId, fileName: file.name, id: this.newId('mov') })),
       };
       this.files.update((list) => [stored, ...list]);
@@ -316,7 +328,7 @@ export class App {
   }
 
   // --- Parsing logic: supports multiple statement formats (retrocompatible) ---
-  private async extractRows(file: File): Promise<RawRow[]> {
+  private async extractRows(data: ArrayBuffer): Promise<RawRow[]> {
     const pdfjsLib: any = await import('pdfjs-dist');
     if (pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
       try {
@@ -327,7 +339,6 @@ export class App {
       }
     }
 
-    const data = await file.arrayBuffer();
     const task = pdfjsLib.getDocument({ data });
     const pdf = await task.promise;
     const allRows: RawRow[] = [];
@@ -684,6 +695,19 @@ export class App {
   }
 
   private newId(prefix: string): string { return `${prefix}-${++this.idSeq}-${Math.random().toString(36).slice(2, 7)}`; }
+
+  private async hashBuffer(data: ArrayBuffer): Promise<string> {
+    if (globalThis.crypto?.subtle) {
+      const hash = await globalThis.crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    // Fallback fingerprint when SubtleCrypto is unavailable.
+    const bytes = new Uint8Array(data);
+    let h = `${bytes.byteLength}:`;
+    const step = Math.max(1, Math.floor(bytes.byteLength / 256));
+    for (let i = 0; i < bytes.byteLength; i += step) h += bytes[i].toString(16).padStart(2, '0');
+    return h;
+  }
 
   private loadFiles(): StatementFile[] {
     try {
