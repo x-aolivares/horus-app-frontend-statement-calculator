@@ -69,6 +69,8 @@ export class App {
   protected readonly search = signal('');
   protected readonly dateFrom = signal('');
   protected readonly dateTo = signal('');
+  protected readonly dateMode = signal<'rango' | 'dia'>('rango');
+  protected readonly dateSingle = signal('');
   protected readonly sortOrder = signal<'date-desc' | 'date-asc'>('date-desc');
   protected readonly selectedIds = signal<Set<string>>(new Set());
   protected readonly dark = signal<boolean>(this.loadTheme());
@@ -90,8 +92,9 @@ export class App {
 
   protected readonly filteredMovements = computed(() => {
     const q = this.search().trim().toLowerCase();
-    const from = this.parseInputDate(this.dateFrom());
-    const to = this.parseInputDate(this.dateTo(), true);
+    const single = this.dateMode() === 'dia';
+    const from = single ? this.parseInputDate(this.dateSingle()) : this.parseInputDate(this.dateFrom());
+    const to = single ? this.parseInputDate(this.dateSingle(), true) : this.parseInputDate(this.dateTo(), true);
     const list = this.allMovements().filter((m) => {
       if (this.filter() === 'debitos' && m.amount < 0) return false;
       if (this.filter() === 'creditos' && m.amount > 0) return false;
@@ -137,6 +140,8 @@ export class App {
   protected clearSearch() { this.search.set(''); }
   protected onDateFrom(v: string) { this.dateFrom.set(v); }
   protected onDateTo(v: string) { this.dateTo.set(v); }
+  protected setDateMode(mode: 'rango' | 'dia') { this.dateMode.set(mode); }
+  protected onDateSingle(v: string) { this.dateSingle.set(v); }
   protected toggleSort() {
     this.sortOrder.update((s) => (s === 'date-desc' ? 'date-asc' : 'date-desc'));
   }

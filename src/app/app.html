@@ -132,18 +132,29 @@
         <button type="button" class="chip" [class.chip-active]="filter() === 'debitos'" (click)="setFilter('debitos')">Débitos</button>
         <button type="button" class="chip" [class.chip-active]="filter() === 'creditos'" (click)="setFilter('creditos')">Créditos</button>
       </div>
-      <div class="filters-grid">
-        <label class="field">
-          <span class="field-label">Desde</span>
-          <input class="field-input" type="date" [value]="dateFrom()" (input)="onDateFrom($any($event.target).value)" />
-        </label>
-        <label class="field">
-          <span class="field-label">Hasta</span>
-          <input class="field-input" type="date" [value]="dateTo()" (input)="onDateTo($any($event.target).value)" />
-        </label>
+      <div class="chips">
+        <button type="button" class="chip" [class.chip-active]="dateMode() === 'rango'" (click)="setDateMode('rango')">Rango</button>
+        <button type="button" class="chip" [class.chip-active]="dateMode() === 'dia'" (click)="setDateMode('dia')">Día</button>
       </div>
+      @if (dateMode() === 'dia') {
+        <label class="field">
+          <span class="field-label">Día</span>
+          <input class="field-input" type="date" [value]="dateSingle()" (input)="onDateSingle($any($event.target).value)" />
+        </label>
+      } @else {
+        <div class="filters-grid">
+          <label class="field">
+            <span class="field-label">Desde</span>
+            <input class="field-input" type="date" [value]="dateFrom()" (input)="onDateFrom($any($event.target).value)" />
+          </label>
+          <label class="field">
+            <span class="field-label">Hasta</span>
+            <input class="field-input" type="date" [value]="dateTo()" (input)="onDateTo($any($event.target).value)" />
+          </label>
+        </div>
+      }
       <div class="sheet-actions">
-        <button type="button" class="btn btn-ghost" (click)="setFilter('todos'); onDateFrom(''); onDateTo('')">Limpiar</button>
+        <button type="button" class="btn btn-ghost" (click)="setFilter('todos'); onDateFrom(''); onDateTo(''); onDateSingle('')">Limpiar</button>
         <button type="button" class="btn btn-primary" (click)="closeFilter()">Listo</button>
       </div>
     </div>
