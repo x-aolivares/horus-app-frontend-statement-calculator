@@ -56,7 +56,7 @@ export class App {
   protected readonly files = signal<StatementFile[]>(this.loadFiles());
   protected readonly selectedFileIds = signal<Set<string>>(new Set(this.loadFiles().map((f) => f.id)));
 
-  // temporary import/mapping state
+  // pending import/mapping state
   protected readonly pendingFileName = signal<string | null>(null);
   protected readonly rawRows = signal<RawRow[]>([]);
   protected readonly columnCount = computed(() => this.rawRows().reduce((m, r) => Math.max(m, r.cells.length), 0));
@@ -75,9 +75,7 @@ export class App {
 
   protected readonly allMovements = computed(() => {
     const selected = this.selectedFileIds();
-    return this.files()
-      .filter((f) => selected.has(f.id))
-      .flatMap((f) => f.movements);
+    return this.files().filter((f) => selected.has(f.id)).flatMap((f) => f.movements);
   });
 
   protected readonly filteredMovements = computed(() => {
@@ -87,10 +85,12 @@ export class App {
     return this.allMovements().filter((m) => {
       if (this.filter() === 'debitos' && m.amount < 0) return false;
       if (this.filter() === 'creditos' && m.amount > 0) return false;
-      if (q && !`${m.description} ${m.date} ${m.reference} ${m.fileName}`.toLowerCase().includes(q)) return false;
-      if (from !== null && m.dateValue !== null && m.dateValue < from) return false;
-      if (to !== null && m.dateValue !== null && m.dateValue > to) return false;
-      if ((from !== null || to !== null) && m.dateValue === null) return false;
+      if (q && !`${m.description} ${m.date} ${m.reference} ${m.fileName} ${m.raw}`.toLowerCase().includes(q)) return false;
+      if (from !== null || to !== null) {
+        if (m.dateValue === null) return false;
+        if (from !== null && m.dateValue < from) return false;
+        if (to !== null && m.dateValue > to) return false;
+      }
       return true;
     });
   });
@@ -105,8 +105,7 @@ export class App {
     let debits = 0;
     let credits = 0;
     for (const m of items) {
-      if (m.amount >= 0) debits += m.amount;
-      else credits += m.amount;
+      if (m.amount >= 0) debits += m.amount; else credits += m.amount;
     }
     return { count: items.length, debits, credits, net: debits + credits };
   });
@@ -123,22 +122,11 @@ export class App {
 
   protected isFileSelected(id: string) { return this.selectedFileIds().has(id); }
   protected toggleFileSelection(id: string) {
-    this.selectedFileIds.update((set) => {
-      const next = new Set(set);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    this.selectedFileIds.update((set) => { const n = new Set(set); if (n.has(id)) n.delete(id); else n.add(id); return n; });
     this.selectedIds.set(new Set());
   }
-  protected selectAllFiles() {
-    this.selectedFileIds.set(new Set(this.files().map((f) => f.id)));
-    this.selectedIds.set(new Set());
-  }
-  protected clearFileSelection() {
-    this.selectedFileIds.set(new Set());
-    this.selectedIds.set(new Set());
-  }
-
+  protected selectAllFiles() { this.selectedFileIds.set(new Set(this.files().map((f) => f.id))); this.selectedIds.set(new Set()); }
+  protected clearFileSelection() { this.selectedFileIds.set(new Set()); this.selectedIds.set(new Set()); }
   protected removeFile(id: string) {
     this.files.update((list) => list.filter((f) => f.id !== id));
     this.selectedFileIds.update((set) => { const n = new Set(set); n.delete(id); return n; });
@@ -148,15 +136,11 @@ export class App {
 
   protected isSelected(id: string) { return this.selectedIds().has(id); }
   protected toggleSelection(id: string) {
-    this.selectedIds.update((set) => {
-      const next = new Set(set);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+    this.selectedIds.update((set) => { const n = new Set(set); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   }
   protected selectVisible() {
     const ids = this.filteredMovements().map((m) => m.id);
-    this.selectedIds.update((set) => { const next = new Set(set); ids.forEach((id) => next.add(id)); return next; });
+    this.selectedIds.update((set) => { const n = new Set(set); ids.forEach((id) => n.add(id)); return n; });
   }
   protected clearSelection() { this.selectedIds.set(new Set()); }
 
@@ -173,7 +157,8 @@ export class App {
       this.autoDetectMap(rows);
       this.applyPendingMapping();
     } catch (e) {
-      this.error.set(e instanceof Error ? e.message : 'No se pudo leer el PDF.');
+      const msg = e instanceof Error ? e.message : 'No se pudo leer el PDF.';
+      this.error.set(msg);
     } finally {
       this.loading.set(false);
       input.value = '';
@@ -183,7 +168,8 @@ export class App {
   protected savePendingAsStatement() {
     const name = this.pendingFileName();
     const movements = this.pendingMovements();
-    if (!name || movements.length === 0) {
+    if (!name) return;
+    if (movements.length === 0) {
       this.error.set('No hay movimientos para guardar. Ajustá el mapeo y aplicalo primero.');
       return;
     }
@@ -196,9 +182,7 @@ export class App {
     };
     this.files.update((list) => [stored, ...list]);
     this.selectedFileIds.update((set) => { const n = new Set(set); n.add(fileId); return n; });
-    this.pendingFileName.set(null);
-    this.rawRows.set([]);
-    this.pendingMovements.set([]);
+    this.cancelPending();
     this.saveFiles();
     this.activeTab.set('movimientos');
   }
@@ -210,6 +194,7 @@ export class App {
     this.error.set(null);
   }
 
+  // --- Parsing logic kept compatible with the working version ---
   private async extractRows(file: File): Promise<RawRow[]> {
     const pdfjsLib: any = await import('pdfjs-dist');
     if (pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
@@ -220,9 +205,12 @@ export class App {
         pdfjsLib.GlobalWorkerOptions.workerSrc = '';
       }
     }
+
     const data = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const task = pdfjsLib.getDocument({ data });
+    const pdf = await task.promise;
     const allRows: RawRow[] = [];
+
     for (let p = 1; p <= pdf.numPages; p++) {
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
@@ -233,30 +221,44 @@ export class App {
           return { str, x: tr[4] as number, y: tr[5] as number };
         })
         .filter((it) => it.str.length > 0);
+
       const lines = new Map<number, { x: number; str: string }[]>();
       for (const it of items) {
         const yKey = Math.round(it.y);
         let bucketKey = yKey;
-        for (const key of lines.keys()) { if (Math.abs(key - yKey) <= 2) { bucketKey = key; break; } }
+        for (const key of lines.keys()) {
+          if (Math.abs(key - yKey) <= 2) { bucketKey = key; break; }
+        }
         if (!lines.has(bucketKey)) lines.set(bucketKey, []);
         lines.get(bucketKey)!.push({ x: it.x, str: it.str });
       }
+
       const sortedYs = [...lines.keys()].sort((a, b) => b - a);
       for (const y of sortedYs) {
         const parts = lines.get(y)!.sort((a, b) => a.x - b.x);
-        const text = parts.map((x) => x.str).join(' ').replace(/\s+/g, ' ').trim();
+        const text = parts.map((p) => p.str).join(' ').replace(/\s+/g, ' ').trim();
         if (!text) continue;
-        const cells = /\s{2,}/.test(text) ? text.split(/\s{2,}/).map((s) => s.trim()).filter(Boolean) : [text.trim()];
+        const cells = this.splitCells(text);
         allRows.push({ cells, text });
       }
     }
     return allRows;
   }
 
+  private splitCells(text: string): string[] {
+    if (/\s{2,}/.test(text)) {
+      return text.split(/\s{2,}/).map((s) => s.trim()).filter(Boolean);
+    }
+    return [text.trim()];
+  }
+
   private autoDetectMap(rows: RawRow[]) {
     const header = rows.find((r) => /fecha/i.test(r.text) && /descrip/i.test(r.text) && /monto/i.test(r.text));
     if (header && header.cells.length >= 3) {
-      const findIdx = (re: RegExp, fb: number) => { const i = header.cells.findIndex((c) => re.test(c)); return i >= 0 ? i : fb; };
+      const findIdx = (re: RegExp, fallback: number) => {
+        const i = header.cells.findIndex((c) => re.test(c));
+        return i >= 0 ? i : fallback;
+      };
       this.columnMap.set({
         date: findIdx(/fecha/i, 0),
         reference: findIdx(/refer/i, 1),
@@ -266,16 +268,23 @@ export class App {
       return;
     }
     const max = rows.reduce((m, r) => Math.max(m, r.cells.length), 0);
-    if (max >= 4) this.columnMap.set({ date: 0, reference: 1, description: 2, amount: max - 1 });
-    else if (max === 3) this.columnMap.set({ date: 0, description: 1, amount: 2, reference: -1 });
+    if (max >= 4) {
+      this.columnMap.set({ date: 0, reference: 1, description: 2, amount: max - 1 });
+    } else if (max === 3) {
+      this.columnMap.set({ date: 0, description: 1, amount: 2, reference: -1 });
+    }
   }
 
-  protected updateMap<K extends keyof ColumnMap>(key: K, value: number) { this.columnMap.update((m) => ({ ...m, [key]: value })); }
+  protected updateMap<K extends keyof ColumnMap>(key: K, value: number) {
+    this.columnMap.update((m) => ({ ...m, [key]: value }));
+  }
+
   protected applyPendingMapping() {
     const map = this.columnMap();
     const rows = this.rawRows();
     const parsed: Movement[] = [];
     let pending: Movement | null = null;
+
     const isDate = (s: string) => /^(\d{1,2}[\/\-][A-Z]{3}[\/\-]\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})$/i.test(s.trim());
     const isMoney = (s: string) => /^[\$]?\s*-?[\d.,]+-?$/.test(s.trim());
     const fname = this.pendingFileName() || '';
@@ -287,16 +296,24 @@ export class App {
       const amountStr = get(map.amount);
       const desc = get(map.description);
       const ref = get(map.reference);
+
       if (isDate(date) && isMoney(amountStr)) {
-        if (pending) parsed.push(pending);
-        pending = { id: this.newId('mov'), fileId: '', fileName: fname, date, dateValue: this.parseStatementDate(date), reference: ref, description: desc, amount: this.parseAmount(amountStr), raw: row.text };
+        if (pending) { parsed.push(pending); pending = null; }
+        const amount = this.parseAmount(amountStr);
+        pending = { id: this.newId('mov'), fileId: '', fileName: fname, date, dateValue: this.parseStatementDate(date), reference: ref, description: desc, amount, raw: row.text };
       } else if (pending) {
+        if (isMoney(amountStr) && !pending.description.includes(get(map.amount))) {
+          // keep existing amount
+        }
         const extra = [desc, ref, date].filter((s) => s && s !== pending!.description).join(' ').trim();
         if (extra && !/\bDETALLE|DESCRIPCI|FECHA\b/i.test(extra)) {
           pending.description = `${pending.description} ${extra}`.replace(/\s+/g, ' ').trim();
         }
-      } else if (isMoney(amountStr) && desc && !/\bDETALLE|DESCRIPCI|FECHA\b/i.test(row.text)) {
-        parsed.push({ id: this.newId('mov'), fileId: '', fileName: fname, date: date || '', dateValue: this.parseStatementDate(date), reference: ref, description: desc || row.text, amount: this.parseAmount(amountStr), raw: row.text });
+      } else {
+        if (isMoney(amountStr) && desc && !/\bDETALLE|DESCRIPCI|FECHA\b/i.test(row.text)) {
+          const amount = this.parseAmount(amountStr);
+          parsed.push({ id: this.newId('mov'), fileId: '', fileName: fname, date: date || '', dateValue: this.parseStatementDate(date), reference: ref, description: desc || row.text, amount, raw: row.text });
+        }
       }
     }
     if (pending) parsed.push(pending);
@@ -312,19 +329,21 @@ export class App {
         }
       }
     }
+
     this.pendingMovements.set(parsed);
   }
 
   private parseAmount(s: string): number {
     if (!s) return 0;
     let t = s.replace(/\$/g, '').replace(/\s/g, '').trim();
-    let neg = false;
-    if (t.endsWith('-')) { neg = true; t = t.slice(0, -1); }
-    if (t.startsWith('-')) { neg = true; t = t.slice(1); }
-    if (/,\d{3}/.test(t)) t = t.replace(/,/g, ''); else t = t.replace(/,/g, '.');
+    let negative = false;
+    if (t.endsWith('-')) { negative = true; t = t.slice(0, -1); }
+    if (t.startsWith('-')) { negative = true; t = t.slice(1); }
+    if (/,\d{3}/.test(t)) t = t.replace(/,/g, '');
+    else t = t.replace(/,/g, '.');
     const n = parseFloat(t);
     const val = isNaN(n) ? 0 : n;
-    return neg ? -Math.abs(val) : val;
+    return negative ? -Math.abs(val) : val;
   }
 
   private parseStatementDate(s: string): number | null {
@@ -335,10 +354,10 @@ export class App {
     const monStr = m[2].toUpperCase();
     let year = parseInt(m[3], 10);
     if (year < 100) year += 2000;
-    const months: Record<string, number> = { ENE:0,FEB:1,MAR:2,ABR:3,MAY:4,JUN:5,JUL:6,AGO:7,SEP:8,OCT:9,NOV:10,DIC:11 };
+    const months: Record<string, number> = { ENE: 0, FEB: 1, MAR: 2, ABR: 3, MAY: 4, JUN: 5, JUL: 6, AGO: 7, SEP: 8, OCT: 9, NOV: 10, DIC: 11 };
     let month = months[monStr];
-    if (month === undefined) { month = parseInt(monStr, 10) - 1; }
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+    if (month === undefined) month = parseInt(monStr, 10) - 1;
+    if (isNaN(day) || isNaN(month) || month < 0 || isNaN(year)) return null;
     return new Date(year, month, day).getTime();
   }
 
@@ -373,6 +392,7 @@ export class App {
     } catch { return []; }
   }
   private saveFiles() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.files())); } catch (e) { this.error.set('No se pudo guardar en almacenamiento local.'); }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.files())); }
+    catch { this.error.set('No se pudo guardar en almacenamiento local.'); }
   }
 }
