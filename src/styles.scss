@@ -96,7 +96,7 @@ input { font: inherit; color: inherit; }
   border: 1px solid var(--stroke);
   background: var(--card);
   border-radius: 999px;
-  color: var(--accent-text);
+  color: var(--text);
   font-size: 13px;
   font-weight: 600;
 }
@@ -321,6 +321,7 @@ input { font: inherit; color: inherit; }
 }
 .movements-layout .selection-bar {
   position: static;
+  border-color: var(--stroke-soft);
 }
 .movements-list {
   flex: 1;

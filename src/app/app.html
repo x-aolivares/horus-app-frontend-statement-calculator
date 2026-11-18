@@ -84,7 +84,7 @@
                   <div class="cell-title" style="overflow:hidden; text-overflow:ellipsis;">{{ item.description || '(sin descripción)' }}</div>
                   <div class="cell-meta">{{ item.date }} @if (item.reference) { · Ref {{ item.reference }} } · {{ item.fileName }}</div>
                 </div>
-                <div class="cell-price" [style.color]="item.amount < 0 ? 'var(--accent-text)' : 'var(--text)'">{{ formatAmount(item.amount) }}</div>
+                <div class="cell-price">{{ formatAmount(item.amount) }}</div>
               </button>
             }
           }
