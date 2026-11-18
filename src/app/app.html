@@ -11,7 +11,10 @@
     </div>
   </header>
 
-  <main class="content" [class.no-scroll]="activeTab() === 'movimientos'">
+  <main class="content" [class.no-scroll]="activeTab() === 'movimientos'" (touchstart)="onPullTouchStart($event)" (touchmove)="onPullTouchMove($event)" (touchend)="onPullTouchEnd()">
+    <div class="pull-indicator" [style.height.px]="pullDistance()" aria-hidden="true">
+      <span class="pull-icon" [class.spinning]="refreshing()">↻</span>
+    </div>
     @if (activeTab() === 'archivos') {
       <div class="section-title">Estados de cuenta</div>
 
@@ -34,7 +37,7 @@
           <div class="empty">Usá + para importar un PDF.</div>
         } @else {
           @for (f of files(); track f.id) {
-            <div class="cell file-row" [class.selected]="isFileSelected(f.id)">
+            <div class="cell file-row" [class.selected]="isFileSelected(f.id)" [class.swiped]="swipedFileId() === f.id" (touchstart)="onRowTouchStart($event)" (touchmove)="onRowTouchMove($event, f.id)">
               <button type="button" class="file-main" (click)="toggleFileSelection(f.id)">
                 <div class="row-check" aria-hidden="true">{{ isFileSelected(f.id) ? '✓' : '' }}</div>
                 <div style="min-width:0; flex:1; text-align:left;">
@@ -112,6 +115,15 @@
       +
       <input type="file" accept="application/pdf" (change)="onFileSelected($event)" hidden />
     </label>
+  }
+
+  @if (snackbar(); as sb) {
+    <div class="snackbar" role="status">
+      <span>{{ sb.message }}</span>
+      @if (sb.undo) {
+        <button type="button" (click)="sb.undo(); snackbar.set(null)">Deshacer</button>
+      }
+    </div>
   }
 
   <nav class="tab-bar" aria-label="Tabs">

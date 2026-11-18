@@ -75,6 +75,16 @@ export class App {
   protected readonly selectedIds = signal<Set<string>>(new Set());
   protected readonly dark = signal<boolean>(this.loadTheme());
 
+  // mobile patterns: snack bar (undo), swipe actions, pull to refresh
+  protected readonly snackbar = signal<{ message: string; undo?: () => void } | null>(null);
+  protected readonly swipedFileId = signal<string | null>(null);
+  protected readonly pullDistance = signal(0);
+  protected readonly refreshing = signal(false);
+  private snackbarTimer: ReturnType<typeof setTimeout> | null = null;
+  private pullStartY = 0;
+  private pulling = false;
+  private rowTouchX = 0;
+
   private themeEffect = effect(() => {
     const dark = this.dark();
     const root = document.documentElement;
@@ -158,16 +168,63 @@ export class App {
 
   protected isFileSelected(id: string) { return this.selectedFileIds().has(id); }
   protected toggleFileSelection(id: string) {
+    if (this.swipedFileId() === id) { this.swipedFileId.set(null); return; }
     this.selectedFileIds.update((set) => { const n = new Set(set); if (n.has(id)) n.delete(id); else n.add(id); return n; });
     this.selectedIds.set(new Set());
   }
   protected selectAllFiles() { this.selectedFileIds.set(new Set(this.files().map((f) => f.id))); this.selectedIds.set(new Set()); }
   protected clearFileSelection() { this.selectedFileIds.set(new Set()); this.selectedIds.set(new Set()); }
   protected removeFile(id: string) {
-    this.files.update((list) => list.filter((f) => f.id !== id));
+    const list = this.files();
+    const index = list.findIndex((f) => f.id === id);
+    if (index < 0) return;
+    const removed = list[index];
+    this.files.update((l) => l.filter((f) => f.id !== id));
     this.selectedFileIds.update((set) => { const n = new Set(set); n.delete(id); return n; });
     this.selectedIds.set(new Set());
     this.saveFiles();
+    this.notify('Archivo eliminado', () => {
+      this.files.update((l) => { const n = [...l]; n.splice(Math.min(index, n.length), 0, removed); return n; });
+      this.selectedFileIds.update((set) => { const n = new Set(set); n.add(removed.id); return n; });
+      this.saveFiles();
+    });
+  }
+
+  protected notify(message: string, undo?: () => void) {
+    if (this.snackbarTimer) clearTimeout(this.snackbarTimer);
+    this.snackbar.set({ message, undo });
+    this.snackbarTimer = setTimeout(() => this.snackbar.set(null), 5000);
+  }
+
+  protected onPullTouchStart(e: TouchEvent) {
+    const el = e.currentTarget as HTMLElement;
+    this.pulling = el.scrollTop <= 0;
+    this.pullStartY = e.touches[0].clientY;
+  }
+  protected onPullTouchMove(e: TouchEvent) {
+    if (!this.pulling || this.refreshing()) return;
+    const dy = e.touches[0].clientY - this.pullStartY;
+    if (dy > 0) this.pullDistance.set(Math.min(Math.round(dy * 0.5), 56));
+  }
+  protected async onPullTouchEnd() {
+    if (!this.pulling) return;
+    this.pulling = false;
+    if (this.pullDistance() < 48) { this.pullDistance.set(0); return; }
+    this.refreshing.set(true);
+    await new Promise((r) => setTimeout(r, 600));
+    this.files.set(this.loadFiles());
+    this.refreshing.set(false);
+    this.pullDistance.set(0);
+    this.notify('Actualizado');
+  }
+
+  protected onRowTouchStart(e: TouchEvent) {
+    this.rowTouchX = e.touches[0].clientX;
+  }
+  protected onRowTouchMove(e: TouchEvent, id: string) {
+    const dx = e.touches[0].clientX - this.rowTouchX;
+    if (dx < -40) this.swipedFileId.set(id);
+    else if (dx > 40 && this.swipedFileId() === id) this.swipedFileId.set(null);
   }
 
   protected isSelected(id: string) { return this.selectedIds().has(id); }
