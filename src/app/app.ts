@@ -50,7 +50,7 @@ export class App {
     { id: 'ajustes' as TabId, label: 'Ajustes', icon: '⚙' },
   ];
 
-  protected readonly activeTab = signal<TabId>('archivos');
+  protected readonly activeTab = signal<TabId>(this.loadTab());
   protected readonly loading = signal(false);
   protected readonly error = signal<string | null>(null);
 
@@ -160,7 +160,18 @@ export class App {
     });
   }
 
-  protected setTab(id: TabId) { this.activeTab.set(id); }
+  protected setTab(id: TabId) { this.activeTab.set(id); this.saveTab(id); }
+
+  private loadTab(): TabId {
+    try {
+      const saved = localStorage.getItem('horus-active-tab');
+      if (saved === 'archivos' || saved === 'movimientos' || saved === 'ajustes') return saved;
+    } catch { /* ignore */ }
+    return 'archivos';
+  }
+  private saveTab(id: TabId) {
+    try { localStorage.setItem('horus-active-tab', id); } catch { /* ignore */ }
+  }
   protected openFilter() { this.filterOpen.set(true); }
   protected closeFilter() { this.filterOpen.set(false); }
   protected setFilter(v: 'todos' | 'debitos' | 'creditos') { this.filter.set(v); }
@@ -232,12 +243,13 @@ export class App {
     const target = e.target as HTMLElement | null;
     let atTop = content.scrollTop <= 0;
     if (this.activeTab() === 'movimientos') {
+      const layout = content.querySelector('.movements-layout') as HTMLElement | null;
       const list = content.querySelector('.movements-list') as HTMLElement | null;
-      if (!list) { this.pulling = false; return; }
-      if (!target || !list.contains(target)) { this.pulling = false; return; }
+      if (!layout || !list) { this.pulling = false; return; }
+      if (!target || !layout.contains(target)) { this.pulling = false; return; }
       atTop = list.scrollTop <= 0;
     }
-    this.pulling = atTop;
+    this.pulling = atTop && !this.refreshing();
     this.pullStartY = e.touches[0].clientY;
   }
   protected onPullTouchMove(e: TouchEvent) {
@@ -246,9 +258,17 @@ export class App {
       const content = e.currentTarget as HTMLElement;
       const list = content.querySelector('.movements-list') as HTMLElement | null;
       if (!list || list.scrollTop > 0) { this.pulling = false; this.pullDistance.set(0); return; }
+    } else {
+      const content = e.currentTarget as HTMLElement;
+      if (content.scrollTop > 0) { this.pulling = false; this.pullDistance.set(0); return; }
     }
     const dy = e.touches[0].clientY - this.pullStartY;
-    if (dy > 0) this.pullDistance.set(Math.min(Math.round(dy * 0.5), 56));
+    if (dy > 0) {
+      try { e.preventDefault(); } catch { /* ignore passive listener */ }
+      this.pullDistance.set(Math.min(Math.round(dy * 0.5), 56));
+    } else {
+      this.pullDistance.set(0);
+    }
   }
   protected async onPullTouchEnd() {
     if (!this.pulling) return;
@@ -323,7 +343,7 @@ export class App {
       this.rawRows.set([]);
       this.pendingMovements.set([]);
       this.saveFiles();
-      this.activeTab.set('movimientos');
+      this.setTab('movimientos');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'No se pudo leer el PDF.';
       this.error.set(msg);
