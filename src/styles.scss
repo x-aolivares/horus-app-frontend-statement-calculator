@@ -99,6 +99,7 @@ input { font: inherit; color: inherit; }
   gap: 14px;
   padding: 16px;
   padding-bottom: calc(90px + var(--safe-bottom));
+  overscroll-behavior-y: contain;
 }
 .content > * { flex-shrink: 0; }
 .content.no-scroll {
@@ -327,6 +328,7 @@ input { font: inherit; color: inherit; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   scrollbar-width: none;
 }
 .movements-list::-webkit-scrollbar {
